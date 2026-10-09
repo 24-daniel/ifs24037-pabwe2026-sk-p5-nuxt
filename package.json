@@ -1,81 +1,43 @@
-import tailwindcss from "@tailwindcss/vite";
- 
-const customPort = Number(process.env.APP_PORT || process.env.PORT) || 3000;
- 
-// https://nuxt.com/docs/api/configuration/nuxt-config
-export default defineNuxtConfig({
-  compatibilityDate: "2024-11-01",
-  devtools: { enabled: false },
-  telemetry: false,
-  // SPA mode (client-side routing and storage)
-  ssr: false,
-  // Let Nuxt look into src/ for application source files
-  srcDir: "src/",
-  // Enable vue-router; routes are supplied by src/router.options.ts
-  pages: true,
-  css: ["~/index.css"],
-  modules: ["@pinia/nuxt"],
-  vite: {
-    plugins: [tailwindcss()],
-    define: {
-      DELCOM_BASEURL: JSON.stringify(
-        process.env.VITE_DELCOM_BASEURL || "https://open-api.delcom.org/api/v1"
-      ),
-    },
-    build: {
-      chunkSizeWarningLimit: 1500,
-      rollupOptions: {
-        output: {
-          manualChunks(id) {
-            if (id.includes("node_modules")) {
-              return "vendor";
-            }
-          },
-        },
-      },
-    },
+{
+  "name": "ifs24037-pabwe2026-sk-p5-vue",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "packageManager": "bun@1.2.0",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "coverage": "vitest run --coverage",
+    "test:coverage": "vitest run --coverage"
   },
-  devServer: {
-    port: customPort,
+  "dependencies": {
+    "@fontsource-variable/plus-jakarta-sans": "^5.0.0",
+    "@toast-ui/editor": "^3.2.2",
+    "clsx": "^2.1.1",
+    "lucide-vue-next": "^1.0.0",
+    "pinia": "^4.0.3",
+    "sweetalert2": "^11.26.25",
+    "tailwind-merge": "^3.7.0",
+    "vue": "^3.5.43",
+    "vue-router": "^5.4.0"
   },
-  nitro: {
-    devPort: customPort,
-    externals: {
-      // Workaround bug Nuxt 4.6.0 di Windows (nuxt/nuxt#36467):
-      // path berformat backslash tidak cocok dengan rule 'nuxt/dist' sehingga muncul error
-      // "Either manifest or precomputed data must be provided".
-      inline: ["@vue/shared", /[\\/]node_modules[\\/]nuxt[\\/]dist[\\/]/],
-    },
+  "overrides": {
+    "dompurify": "^3.2.4"
   },
-  app: {
-    head: {
-      title: "Delcom Cash Flow",
-      htmlAttrs: {
-        lang: "id",
-      },
-      meta: [
-        {
-          name: "description",
-          content:
-            "Delcom Cash Flow - aplikasi pencatatan pemasukan dan pengeluaran kas, tabungan, dan pinjaman.",
-        },
-      ],
-      link: [
-        { rel: "icon", type: "image/svg+xml", href: "/logo.svg" },
-        { rel: "preconnect", href: "https://fonts.googleapis.com" },
-        {
-          rel: "preconnect",
-          href: "https://fonts.gstatic.com",
-          crossorigin: "",
-        },
-        {
-          rel: "stylesheet",
-          href: "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600&display=swap",
-        },
-      ],
-      bodyAttrs: {
-        class: "bg-slate-50 text-slate-900 font-sans antialiased min-h-screen",
-      },
-    },
-  },
-});
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/user-event": "^14.6.7",
+    "@testing-library/vue": "^8.1.0",
+    "@vitejs/plugin-vue": "^6.0.9",
+    "@vitest/coverage-v8": "^5.0.3",
+    "@vue/test-utils": "^2.5.1",
+    "jsdom": "^30.1.2",
+    "tailwindcss": "^4.3.3",
+    "vite": "^8.3.3",
+    "vitest": "^5.0.3"
+  }
+}
