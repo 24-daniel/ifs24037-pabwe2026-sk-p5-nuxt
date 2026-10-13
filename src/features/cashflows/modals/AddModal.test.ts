@@ -56,7 +56,7 @@ describe("AddModal", () => {
       description: "Makan siang",
     });
     expect(emitted().saved).toHaveLength(1);
-    expect(Swal.fire.mock.calls[0][0]).toMatchObject({ icon: "success", title: "Transaksi dicatat" });
+    await waitFor(() => expect(Swal.fire.mock.calls[0][0]).toMatchObject({ icon: "success", title: "Transaksi dicatat" }));
   });
 
   it("gagal mencatat menampilkan dialog error dan tidak menutup modal", async () => {
@@ -65,7 +65,7 @@ describe("AddModal", () => {
     await fillAll();
     await submit();
     await waitFor(() => expect(Swal.fire).toHaveBeenCalled());
-    expect(Swal.fire.mock.calls[0][0]).toMatchObject({ icon: "error", text: "Data tidak valid\nTerlalu panjang" });
+    await waitFor(() => expect(Swal.fire.mock.calls[0][0]).toMatchObject({ icon: "error", text: "Data tidak valid\nTerlalu panjang" }));
     expect(emitted().close).toBeUndefined();
   });
 

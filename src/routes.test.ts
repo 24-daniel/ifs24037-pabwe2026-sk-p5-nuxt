@@ -54,6 +54,16 @@ describe("routes & router", () => {
     expect((await go("/auth/login", true)).path).toBe("/");
   });
 
+  it("semua halaman lazy ter-resolve saat dikunjungi", async () => {
+    expect((await go("/", true)).matched).toHaveLength(2);
+    expect((await go("/users", true)).path).toBe("/users");
+    expect((await go("/cash-flows/9", true)).path).toBe("/cash-flows/9");
+    expect((await go("/profile", true)).path).toBe("/profile");
+    localStorage.clear();
+    expect((await go("/auth/login")).path).toBe("/auth/login");
+    expect((await go("/auth/register")).path).toBe("/auth/register");
+  });
+
   it("rute tidak dikenal memakai NotFoundPage", async () => {
     const route = await go("/halaman/tidak/ada");
     expect(route.matched[0].components.default).toBe(NotFoundPage);

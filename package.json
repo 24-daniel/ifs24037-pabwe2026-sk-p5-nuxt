@@ -1,5 +1,5 @@
 {
-  "name": "username-pabwe2026-sk-p5-nuxt",
+  "name": "ifs24037-pabwe2026-sk-p5-nuxt",
   "type": "module",
   "private": true,
   "scripts": {
@@ -15,6 +15,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@fontsource-variable/plus-jakarta-sans": "^5.2.0",
     "@pinia/nuxt": "^1.0.2",
     "clsx": "^2.1.1",
     "dotenv": "^17.2.3",

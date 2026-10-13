@@ -19,11 +19,11 @@ import {
 } from "./toolsHelper";
 
 describe("dialog SweetAlert2", () => {
-  it("showSuccessDialog & showErrorDialog memakai judul default atau kustom", () => {
-    showSuccessDialog("ok");
-    showSuccessDialog("ok", "Judul");
-    showErrorDialog("gagal");
-    showErrorDialog("gagal", "Judul");
+  it("showSuccessDialog & showErrorDialog memakai judul default atau kustom", async () => {
+    await showSuccessDialog("ok");
+    await showSuccessDialog("ok", "Judul");
+    await showErrorDialog("gagal");
+    await showErrorDialog("gagal", "Judul");
     const calls = Swal.fire.mock.calls.map(([o]) => [o.icon, o.title]);
     expect(calls).toEqual([
       ["success", "Berhasil"],

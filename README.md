@@ -52,3 +52,12 @@ src/
 - Deploy Netlify: build command `bun run build`, Nuxt otomatis memakai preset Netlify. Nama situs harus
   `{username}-pabwe2026-sk-p5-nuxt` untuk Delcom Grading.
 - Repositori/folder: `{username}-pabwe2026-sk-p5-nuxt`, mis. `ifs18005-pabwe2026-sk-p5-nuxt`.
+
+## Optimasi performa (Lighthouse)
+
+- Font Plus Jakarta Sans di-host sendiri lewat `@fontsource-variable/plus-jakarta-sans` (tidak ada lagi stylesheet Google Fonts yang memblokir render).
+- Rute dimuat lazy (`() => import(...)`) sehingga halaman login tidak membawa kode dashboard.
+- SweetAlert2 dimuat dinamis hanya saat dialog pertama kali tampil.
+- `spaLoadingTemplate` menampilkan shell ringan sebelum aplikasi SPA siap (FCP lebih cepat).
+- `experimental.appManifest: false` menghilangkan request manifest build tambahan.
+- Header keamanan lewat `routeRules` di `nuxt.config.ts`.

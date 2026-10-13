@@ -64,7 +64,7 @@ describe('ProfilePage', () => {
     await fireEvent.click(screen.getByRole('button', { name: 'Simpan profil' }))
     await waitFor(() => expect(userApi.getProfile).toHaveBeenCalled())
     expect(userApi.updateProfile).toHaveBeenCalledWith({ name: 'Baru', email: 'a@b.co' })
-    expect(Swal.fire.mock.calls[0][0]).toMatchObject({ icon: 'success', title: 'Profil diperbarui' })
+    await waitFor(() => expect(Swal.fire.mock.calls[0][0]).toMatchObject({ icon: 'success', title: 'Profil diperbarui' }))
   })
 
   it('simpan profil gagal menampilkan error tanpa memuat ulang', async () => {
@@ -72,7 +72,7 @@ describe('ProfilePage', () => {
     await render()
     await fireEvent.click(screen.getByRole('button', { name: 'Simpan profil' }))
     await waitFor(() => expect(Swal.fire).toHaveBeenCalled())
-    expect(Swal.fire.mock.calls[0][0]).toMatchObject({ icon: 'error', text: 'Gagal total' })
+    await waitFor(() => expect(Swal.fire.mock.calls[0][0]).toMatchObject({ icon: 'error', text: 'Gagal total' }))
     expect(userApi.getProfile).not.toHaveBeenCalled()
   })
 
@@ -87,8 +87,8 @@ describe('ProfilePage', () => {
     await fireEvent.change(photoInput(), { target: { files: [new File(['x'], 'a.pdf', { type: 'application/pdf' })] } })
     await fireEvent.change(photoInput(), { target: { files: [image(3 * 1024 * 1024)] } })
     expect(userApi.uploadPhoto).not.toHaveBeenCalled()
-    expect(Swal.fire).toHaveBeenCalledTimes(2)
-    expect(Swal.fire.mock.calls[0][0].text).toMatch(/maksimal 2 MB/)
+    await waitFor(() => expect(Swal.fire).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(Swal.fire.mock.calls[0][0].text).toMatch(/maksimal 2 MB/))
   })
 
   it('unggah foto berhasil dan gagal', async () => {

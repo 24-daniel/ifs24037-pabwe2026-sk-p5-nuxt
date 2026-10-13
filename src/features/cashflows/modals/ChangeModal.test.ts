@@ -64,7 +64,7 @@ describe("ChangeModal", () => {
       description: "Gaji bulanan",
     });
     expect(emitted().saved).toHaveLength(1);
-    expect(Swal.fire.mock.calls[0][0]).toMatchObject({ icon: "success", title: "Transaksi diperbarui" });
+    await waitFor(() => expect(Swal.fire.mock.calls[0][0]).toMatchObject({ icon: "success", title: "Transaksi diperbarui" }));
   });
 
   it("gagal menyimpan menampilkan dialog error", async () => {
@@ -72,7 +72,7 @@ describe("ChangeModal", () => {
     const { emitted } = await open();
     await save();
     await waitFor(() => expect(Swal.fire).toHaveBeenCalled());
-    expect(Swal.fire.mock.calls[0][0]).toMatchObject({ icon: "error", text: "Ditolak" });
+    await waitFor(() => expect(Swal.fire.mock.calls[0][0]).toMatchObject({ icon: "error", text: "Ditolak" }));
     expect(emitted().close).toBeUndefined();
   });
 

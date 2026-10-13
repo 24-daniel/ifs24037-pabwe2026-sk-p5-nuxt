@@ -1,19 +1,21 @@
-import Swal from "sweetalert2";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import type { ApiResponse } from "./apiHelper";
 
+// SweetAlert2 dimuat hanya saat dialog pertama kali ditampilkan (mengurangi JavaScript awal)
+const loadSwal = async () => (await import("sweetalert2")).default;
+
 const colors = { confirmButtonColor: "#43194f", cancelButtonColor: "#475569" };
 
-export const showSuccessDialog = (message: string, title = "Berhasil") =>
-  Swal.fire({ icon: "success", title, text: message, ...colors });
+export const showSuccessDialog = async (message: string, title = "Berhasil") =>
+  (await loadSwal()).fire({ icon: "success", title, text: message, ...colors });
 
-export const showErrorDialog = (message: string, title = "Terjadi kesalahan") =>
-  Swal.fire({ icon: "error", title, text: message, ...colors });
+export const showErrorDialog = async (message: string, title = "Terjadi kesalahan") =>
+  (await loadSwal()).fire({ icon: "error", title, text: message, ...colors });
 
 /** Mengembalikan true jika pengguna menekan tombol konfirmasi. */
 export async function showConfirmDialog(message: string, title = "Apakah kamu yakin?"): Promise<boolean> {
-  const result = await Swal.fire({
+  const result = await (await loadSwal()).fire({
     icon: "warning",
     title,
     text: message,

@@ -40,7 +40,7 @@ describe('RegisterPage', () => {
     await submit()
     await waitFor(() => expect(router.currentRoute.value.path).toBe('/auth/login'))
     expect(authApi.register).toHaveBeenCalledWith({ name: 'Dani', email: 'd@del.ac.id', password: '123456' })
-    expect(Swal.fire.mock.calls[0][0]).toMatchObject({ icon: 'success', title: 'Pendaftaran berhasil' })
+    await waitFor(() => expect(Swal.fire.mock.calls[0][0]).toMatchObject({ icon: 'success', title: 'Pendaftaran berhasil' }))
   })
 
   it('registrasi gagal menampilkan detail validasi', async () => {
@@ -49,7 +49,7 @@ describe('RegisterPage', () => {
     await fill('Dani', 'd@del.ac.id', '123456')
     await submit()
     await waitFor(() => expect(Swal.fire).toHaveBeenCalled())
-    expect(Swal.fire.mock.calls[0][0].text).toBe('Data tidak valid\nEmail sudah dipakai')
+    await waitFor(() => expect(Swal.fire.mock.calls[0][0].text).toBe('Data tidak valid\nEmail sudah dipakai'))
     expect(router.currentRoute.value.path).toBe('/auth/register')
   })
 

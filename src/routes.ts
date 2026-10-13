@@ -1,13 +1,13 @@
 import type { RouteRecordRaw } from "vue-router";
-import AuthLayout from "./features/auth/layouts/AuthLayout.vue";
-import LoginPage from "./features/auth/pages/LoginPage.vue";
-import RegisterPage from "./features/auth/pages/RegisterPage.vue";
-import CashFlowLayout from "./features/cashflows/layouts/CashFlowLayout.vue";
-import HomePage from "./features/cashflows/pages/HomePage.vue";
-import DetailPage from "./features/cashflows/pages/DetailPage.vue";
-import UsersPage from "./features/users/pages/UsersPage.vue";
-import ProfilePage from "./features/users/pages/ProfilePage.vue";
-import NotFoundPage from "./features/common/pages/NotFoundPage.vue";
+const AuthLayout = () => import("./features/auth/layouts/AuthLayout.vue");
+const LoginPage = () => import("./features/auth/pages/LoginPage.vue");
+const RegisterPage = () => import("./features/auth/pages/RegisterPage.vue");
+const CashFlowLayout = () => import("./features/cashflows/layouts/CashFlowLayout.vue");
+const HomePage = () => import("./features/cashflows/pages/HomePage.vue");
+const DetailPage = () => import("./features/cashflows/pages/DetailPage.vue");
+const UsersPage = () => import("./features/users/pages/UsersPage.vue");
+const ProfilePage = () => import("./features/users/pages/ProfilePage.vue");
+const NotFoundPage = () => import("./features/common/pages/NotFoundPage.vue");
 import { getAccessToken } from "./helpers/apiHelper";
 
 /** Halaman dashboard hanya untuk pengguna yang sudah login. */

@@ -47,7 +47,7 @@ describe('LoginPage', () => {
     await fill('a@b.co', 'salah')
     await fireEvent.click(screen.getByRole('button', { name: 'Masuk' }))
     await waitFor(() => expect(Swal.fire).toHaveBeenCalled())
-    expect(Swal.fire.mock.calls[0][0]).toMatchObject({ icon: 'error', title: 'Login gagal', text: 'Kredensial akun tidak ditemukan' })
+    await waitFor(() => expect(Swal.fire.mock.calls[0][0]).toMatchObject({ icon: 'error', title: 'Login gagal', text: 'Kredensial akun tidak ditemukan' }))
     expect(router.currentRoute.value.path).toBe('/auth/login')
   })
 
