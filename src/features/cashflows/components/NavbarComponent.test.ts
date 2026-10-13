@@ -34,6 +34,14 @@ describe("NavbarComponent", () => {
     expect(screen.getByText("?")).toBeInTheDocument();
   });
 
+  it("foto bawaan API (img/user.png) tidak diunduh: tampil inisial", async () => {
+    const { container } = await renderWithProviders(NavbarComponent, {
+      initialState: { users: { profile: { ...profile, photo: "img/user.png" } } },
+    });
+    expect(container.querySelector("img")).toBeNull();
+    expect(screen.getByText("AU")).toBeInTheDocument();
+  });
+
   it("tombol menu mengirim event toggle-sidebar", async () => {
     const { emitted } = await renderWithProviders(NavbarComponent);
     await fireEvent.click(screen.getByLabelText("Buka menu"));

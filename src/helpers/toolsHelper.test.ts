@@ -10,6 +10,7 @@ import {
   getInitials,
   isValidEmail,
   parseTimestamp,
+  hasCustomPhoto,
   resolveImageUrl,
   showConfirmDialog,
   showErrorDialog,
@@ -85,6 +86,15 @@ describe("format", () => {
     expect(resolveImageUrl("https://x.test/a.png")).toBe("https://x.test/a.png");
     expect(resolveImageUrl("img/profile/1.png")).toBe("https://open-api.delcom.org/img/profile/1.png");
     expect(resolveImageUrl("/img/profile/1.png")).toBe("https://open-api.delcom.org/img/profile/1.png");
+  });
+
+  it("hasCustomPhoto menganggap foto bawaan API sebagai tidak ada foto", () => {
+    expect(hasCustomPhoto(null)).toBe(false);
+    expect(hasCustomPhoto("")).toBe(false);
+    expect(hasCustomPhoto("img/user.png")).toBe(false);
+    expect(hasCustomPhoto("/img/user.png")).toBe(false);
+    expect(hasCustomPhoto("https://open-api.delcom.org/img/user.png")).toBe(false);
+    expect(hasCustomPhoto("img/profile/1.png")).toBe(true);
   });
 
   it("isValidEmail", () => {

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted } from "vue";
 import { useUsersStore } from "../states/usersStore";
-import { formatDate, getInitials, resolveImageUrl } from "../../../helpers/toolsHelper";
+import { formatDate, getInitials, hasCustomPhoto, resolveImageUrl } from "../../../helpers/toolsHelper";
 
 const store = useUsersStore();
 onMounted(() => store.fetchUsers());
@@ -18,7 +18,7 @@ onMounted(() => store.fetchUsers());
     </p>
     <ul v-else class="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
       <li v-for="user in store.users" :key="user.id" class="panel flex items-center gap-4 p-4" data-testid="user-card">
-        <img v-if="user.photo" :src="resolveImageUrl(user.photo)" :alt="user.name" class="size-12 rounded-full object-cover" />
+        <img v-if="hasCustomPhoto(user.photo)" :src="resolveImageUrl(user.photo)" :alt="user.name" class="size-12 rounded-full object-cover" />
         <span v-else class="grid size-12 place-items-center rounded-full bg-plum-900 font-bold text-white" aria-hidden="true">
           {{ getInitials(user.name) }}
         </span>

@@ -37,6 +37,17 @@ export default defineNuxtConfig({
     },
   },
   modules: ["@pinia/nuxt"],
+  hooks: {
+    // Preload font Latin saja (nama berkas ber-hash, jadi diambil dari manifest build).
+    // Tanpa ini font baru diminta setelah CSS selesai di-parse: HTML -> CSS -> font.
+    "build:manifest": (manifest) => {
+      for (const chunk of Object.values(manifest)) {
+        if (chunk.resourceType === "font" && /latin-wght-normal/.test(chunk.file)) {
+          chunk.preload = true;
+        }
+      }
+    },
+  },
   vite: {
     plugins: [tailwindcss()],
     define: {
