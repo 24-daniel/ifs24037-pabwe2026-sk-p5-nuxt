@@ -22,6 +22,10 @@ export default defineNuxtConfig({
     appManifest: false,
   },
   routeRules: {
+    // Proxy satu-origin ke Delcom Open API. Browser tidak melakukan CORS lintas-origin,
+    // sehingga peringatan "Authorization will not be covered by the wildcard (*)"
+    // (audit Lighthouse "Uses deprecated APIs") tidak muncul.
+    "/delcom-api/**": { proxy: "https://open-api.delcom.org/api/v1/**" },
     "/**": {
       headers: {
         "X-Content-Type-Options": "nosniff",
@@ -36,9 +40,9 @@ export default defineNuxtConfig({
   vite: {
     plugins: [tailwindcss()],
     define: {
-      DELCOM_BASEURL: JSON.stringify(
-        process.env.VITE_DELCOM_BASEURL || "https://open-api.delcom.org/api/v1",
-      ),
+      // Build Nuxt selalu lewat proxy "/delcom-api" (lihat routeRules).
+      // Vitest tetap memakai VITE_DELCOM_BASEURL dari vite.config.ts.
+      DELCOM_BASEURL: JSON.stringify("/delcom-api"),
     },
     build: {
       chunkSizeWarningLimit: 1500,

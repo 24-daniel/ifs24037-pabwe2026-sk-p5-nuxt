@@ -28,7 +28,8 @@ export const isSuccess = (response?: ApiResponse | null): boolean => response?.s
 
 /** Membangun URL lengkap beserta query parameters (nilai kosong diabaikan). */
 export function buildUrl(path: string, params?: QueryParams): string {
-  const url = new URL(`${DELCOM_BASEURL}${path}`);
+  // Base URL boleh relatif (mis. "/delcom-api" lewat proxy satu-origin) atau absolut
+  const url = new URL(`${DELCOM_BASEURL}${path}`, window.location.origin);
   Object.entries(params ?? {}).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== "") {
       url.searchParams.set(key, String(value));
