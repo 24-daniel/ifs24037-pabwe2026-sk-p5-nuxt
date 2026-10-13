@@ -47,7 +47,11 @@ async function removeCashFlow() {
       <ArrowLeft :size="16" aria-hidden="true" /> Kembali ke ringkasan
     </RouterLink>
 
-    <p v-if="store.isCashFlow" class="mt-10 text-center text-sm text-slate-600">Memuat detail transaksi…</p>
+    <div v-if="store.isCashFlow" class="mt-10 text-center">
+      <!-- h1 tetap ada saat loading agar halaman selalu punya heading level-satu (Axe: page-has-heading-one) -->
+      <h1 class="sr-only">Detail transaksi</h1>
+      <p class="text-sm text-slate-600">Memuat detail transaksi…</p>
+    </div>
     <div v-else-if="!cashFlow" class="panel mt-8 p-10 text-center">
       <h1 class="font-bold">Transaksi tidak ditemukan</h1>
       <p class="mt-1 text-sm text-slate-600">Transaksi mungkin sudah dihapus.</p>
