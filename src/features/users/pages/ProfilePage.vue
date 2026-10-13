@@ -7,6 +7,7 @@ import { isSuccess, type ApiResponse } from "../../../helpers/apiHelper";
 import {
   extractErrorMessage,
   getInitials,
+  hasCustomPhoto,
   isValidEmail,
   resolveImageUrl,
   showErrorDialog,
@@ -93,7 +94,7 @@ async function onPasswordSubmit() {
     <p class="mt-1 text-sm text-slate-600">Kelola data akun, foto, dan kata sandimu.</p>
 
     <section class="panel mt-6 flex items-center gap-5 p-6" aria-label="Foto profil">
-      <img v-if="store.profile?.photo" :src="resolveImageUrl(store.profile.photo)" alt="Foto profil" class="size-20 rounded-full object-cover" />
+      <img v-if="hasCustomPhoto(store.profile?.photo)" :src="resolveImageUrl(store.profile.photo)" alt="Foto profil" class="size-20 rounded-full object-cover" />
       <span v-else class="grid size-20 place-items-center rounded-full bg-plum-900 text-xl font-bold text-white" aria-hidden="true">
         {{ getInitials(store.profile?.name) }}
       </span>

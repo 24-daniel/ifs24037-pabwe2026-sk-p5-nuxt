@@ -82,6 +82,12 @@ export function resolveImageUrl(path?: string | null): string {
   return `${new URL(DELCOM_BASEURL).origin}/${String(path).replace(/^\//, "")}`;
 }
 
+/**
+ * Foto bawaan API (\"img/user.png\") dianggap tidak ada foto: UI menampilkan inisial nama,
+ * sehingga browser tidak mengunduh gambar tanpa cache dari server Delcom.
+ */
+export const hasCustomPhoto = (path?: string | null): boolean => !!path && !/(^|\/)img\/user\.png$/.test(path);
+
 export const getInitials = (name?: string | null): string =>
   String(name || "?")
     .split(" ")

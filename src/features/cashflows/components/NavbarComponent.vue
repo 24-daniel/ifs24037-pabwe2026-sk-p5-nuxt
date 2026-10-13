@@ -3,7 +3,7 @@ import { useRouter } from "vue-router";
 import { LogOut, Menu } from "lucide-vue-next";
 import { useAuthStore } from "../../auth/states/authStore";
 import { useUsersStore } from "../../users/states/usersStore";
-import { getInitials, resolveImageUrl, showConfirmDialog } from "../../../helpers/toolsHelper";
+import { getInitials, hasCustomPhoto, resolveImageUrl, showConfirmDialog } from "../../../helpers/toolsHelper";
 
 const emit = defineEmits<{ (e: "toggle-sidebar"): void }>();
 
@@ -31,7 +31,7 @@ async function onLogout() {
 
     <div class="flex items-center gap-3">
       <div class="flex items-center gap-3">
-        <img v-if="usersStore.profile?.photo" :src="resolveImageUrl(usersStore.profile.photo)" alt="" class="size-9 rounded-full object-cover" />
+        <img v-if="hasCustomPhoto(usersStore.profile?.photo)" :src="resolveImageUrl(usersStore.profile.photo)" alt="" class="size-9 rounded-full object-cover" />
         <span v-else class="grid size-9 place-items-center rounded-full bg-plum-900 text-xs font-bold text-white" aria-hidden="true">
           {{ getInitials(usersStore.profile?.name) }}
         </span>
