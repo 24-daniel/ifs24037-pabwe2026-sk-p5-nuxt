@@ -1,6 +1,7 @@
 import { spawn } from "child_process";
 import { config } from "dotenv";
 
+// Membaca APP_PORT dari .env lalu menjalankan `nuxt preview` pada port tersebut.
 config();
 
 const port = process.env.APP_PORT || process.env.PORT || 3000;

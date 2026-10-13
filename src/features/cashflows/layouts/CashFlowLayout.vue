@@ -1,25 +1,32 @@
 <script setup lang="ts">
-import { ref } from "vue";
-import { RouterView, useRouter } from "vue-router";
-import { useAuthStore } from "../../auth/states/authStore";
+import { onMounted, ref } from "vue";
+import { useRouter } from "vue-router";
 import NavbarComponent from "../components/NavbarComponent.vue";
 import SidebarComponent from "../components/SidebarComponent.vue";
+import { useAuthStore } from "../../auth/states/authStore";
+import { useUsersStore } from "../../users/states/usersStore";
 
 const router = useRouter();
 const authStore = useAuthStore();
+const usersStore = useUsersStore();
 const sidebarOpen = ref(false);
 
-if (!authStore.isAuthenticated) {
-  router.replace("/auth/login");
-}
+onMounted(async () => {
+  const response = await usersStore.fetchProfile();
+  // Token kedaluwarsa / tidak valid -> kembali ke halaman login
+  if (response.httpStatus === 401) {
+    authStore.clearSession();
+    router.replace("/auth/login");
+  }
+});
 </script>
 
 <template>
-  <div v-if="authStore.isAuthenticated" class="min-h-screen bg-slate-50 lg:flex">
+  <div class="min-h-screen">
     <SidebarComponent :open="sidebarOpen" @close="sidebarOpen = false" />
-    <div class="flex min-w-0 flex-1 flex-col">
+    <div class="lg:pl-64">
       <NavbarComponent @toggle-sidebar="sidebarOpen = !sidebarOpen" />
-      <main class="flex-1 p-4 sm:p-6 lg:p-8">
+      <main class="mx-auto w-full max-w-6xl px-4 py-8 sm:px-8">
         <RouterView />
       </main>
     </div>

@@ -1,4 +1,4 @@
-import { apiRequest } from "../../../helpers/apiHelper";
+import { apiGet, apiPost, apiPut } from "../../../helpers/apiHelper";
 
 export interface User {
   id: number;
@@ -9,38 +9,24 @@ export interface User {
   updated_at?: string;
 }
 
-export function getUsers() {
-  return apiRequest<{ users: User[] }>("/users");
+export interface ChangePasswordPayload {
+  password: string;
+  new_password: string;
+  new_password_confirmation: string;
 }
 
-export function getMe() {
-  return apiRequest<{ user: User }>("/users/me");
-}
+export const getUsers = () => apiGet<{ users: User[] }>("/users");
+export const getUserById = (id: number | string) => apiGet<{ user: User }>(`/users/${id}`);
+export const getProfile = () => apiGet<{ user: User }>("/users/me");
+export const updateProfile = ({ name, email }: { name: string; email: string }) =>
+  apiPut<{ user: User }>("/users/me", { name, email });
 
-export function updateMe(name: string, email: string) {
-  return apiRequest<{ user: User }>("/users/me", {
-    method: "PUT",
-    body: { name, email },
-  });
-}
+export const uploadPhoto = (file: File) => {
+  const formData = new FormData();
+  formData.append("photo", file);
+  return apiPost("/users/me/photo", formData);
+};
 
-export function uploadPhoto(file: File) {
-  const form = new FormData();
-  form.append("photo", file);
-  return apiRequest("/users/me/photo", { method: "POST", body: form });
-}
-
-export function changePassword(
-  password: string,
-  newPassword: string,
-  newPasswordConfirmation: string
-) {
-  return apiRequest("/users/password", {
-    method: "PUT",
-    body: {
-      password,
-      new_password: newPassword,
-      new_password_confirmation: newPasswordConfirmation,
-    },
-  });
-}
+// Sesuai dokumentasi Delcom Open API: PUT /users/password
+export const changePassword = ({ password, new_password, new_password_confirmation }: ChangePasswordPayload) =>
+  apiPut("/users/password", { password, new_password, new_password_confirmation });

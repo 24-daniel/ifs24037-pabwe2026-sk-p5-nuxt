@@ -5,10 +5,10 @@ node_modules
 # testing
 coverage
 *.lcov
-.scannerwork
 # nuxt & build output
 .nuxt
 .output
+.data
 dist
 # production
 build

@@ -1,73 +1,35 @@
-import { apiRequest } from "../../../helpers/apiHelper";
+import { apiDelete, apiGet, apiPost, apiPut } from "../../../helpers/apiHelper";
+import type {
+  CashFlow,
+  CashFlowPayload,
+  CashFlowQueryParams,
+  CashFlowStats,
+  CashFlowTrend,
+  TrendQueryParams,
+} from "../states/cashFlowsStore";
 
-export type CashFlowType = "inflow" | "outflow";
-export type CashFlowSource = "cash" | "savings" | "loans";
+export const getCashFlows = (params?: CashFlowQueryParams) =>
+  apiGet<{ cash_flows: CashFlow[]; stats: CashFlowStats }>("/cash-flows", { ...params });
 
-export interface CashFlow {
-  id: number;
-  user_id: number;
-  type: CashFlowType;
-  source: CashFlowSource;
-  label: string;
-  description: string;
-  nominal: number;
-  created_at: string;
-  updated_at: string;
-}
+export const getCashFlow = (id: number | string) =>
+  apiGet<{ cash_flow: CashFlow }>(`/cash-flows/${id}`);
 
-export interface CashFlowPayload {
-  type: CashFlowType;
-  source: CashFlowSource;
-  label: string;
-  nominal: number;
-  description: string;
-}
+export const addCashFlow = ({ type, source, label, description, nominal }: CashFlowPayload) =>
+  apiPost<{ cash_flow_id: number }>("/cash-flows", { type, source, label, description, nominal });
 
-export interface CashFlowQueryParams {
-  type?: string;
-  source?: string;
-  label?: string;
-  start_date?: string;
-  end_date?: string;
-}
+export const changeCashFlow = (
+  id: number | string,
+  { type, source, label, description, nominal }: CashFlowPayload,
+) => apiPut(`/cash-flows/${id}`, { type, source, label, description, nominal });
 
-export interface StatsQueryParams {
-  end_date?: string;
-  total_data?: number;
-}
+export const deleteCashFlow = (id: number | string) => apiDelete(`/cash-flows/${id}`);
 
-export function getCashFlows(params: CashFlowQueryParams) {
-  return apiRequest("/cash-flows", { query: { ...params } });
-}
+export const getLabels = () => apiGet<{ labels: string[] }>("/cash-flows/labels");
 
-export function getCashFlow(id: string | number) {
-  return apiRequest(`/cash-flows/${id}`);
-}
+export const getStatsDaily = (params?: TrendQueryParams) =>
+  apiGet<CashFlowTrend>("/cash-flows/stats/daily", { ...params });
 
-export function addCashFlow(payload: CashFlowPayload) {
-  return apiRequest("/cash-flows", { method: "POST", body: payload });
-}
+export const getStatsMonthly = (params?: TrendQueryParams) =>
+  apiGet<CashFlowTrend>("/cash-flows/stats/monthly", { ...params });
 
-export function updateCashFlow(id: string | number, payload: CashFlowPayload) {
-  return apiRequest(`/cash-flows/${id}`, { method: "PUT", body: payload });
-}
-
-export function deleteCashFlow(id: string | number) {
-  return apiRequest(`/cash-flows/${id}`, { method: "DELETE" });
-}
-
-export function getLabels() {
-  return apiRequest("/cash-flows/labels");
-}
-
-export function getDailyStats(params: StatsQueryParams) {
-  return apiRequest("/cash-flows/stats/daily", { query: { ...params } });
-}
-
-export function getMonthlyStats(params: StatsQueryParams) {
-  return apiRequest("/cash-flows/stats/monthly", { query: { ...params } });
-}
-
-export function deleteAllCashFlows() {
-  return apiRequest("/cash-flows", { method: "DELETE" });
-}
+export const deleteAllCashFlows = () => apiDelete("/cash-flows");

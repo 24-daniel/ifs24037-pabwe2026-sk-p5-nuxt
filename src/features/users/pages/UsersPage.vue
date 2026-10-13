@@ -1,48 +1,33 @@
 <script setup lang="ts">
 import { onMounted } from "vue";
 import { useUsersStore } from "../states/usersStore";
-import { formatDateTime } from "../../../helpers/toolsHelper";
+import { formatDate, getInitials, resolveImageUrl } from "../../../helpers/toolsHelper";
 
 const store = useUsersStore();
-
 onMounted(() => store.fetchUsers());
 </script>
 
 <template>
-  <section aria-labelledby="users-title" class="space-y-6">
-    <div>
-      <h1 id="users-title" class="text-2xl font-bold text-slate-900">Direktori Pengguna</h1>
-      <p class="text-slate-700">Daftar seluruh pengguna yang terdaftar di sistem.</p>
-    </div>
+  <div>
+    <h1 class="text-3xl font-extrabold tracking-tight">Direktori Pengguna</h1>
+    <p class="mt-1 text-sm text-slate-600">Semua pengguna yang terdaftar di Delcom.</p>
 
-    <p v-if="store.isLoading" class="text-slate-700">Memuat data...</p>
-    <p v-else-if="store.users.length === 0" class="rounded-2xl border border-slate-200 bg-white p-6 text-slate-800">
-      Belum ada pengguna.
+    <p v-if="store.isLoading" class="mt-10 text-center text-sm text-slate-600">Memuat pengguna…</p>
+    <p v-else-if="store.users.length === 0" class="panel mt-8 p-10 text-center text-sm text-slate-600">
+      Belum ada pengguna terdaftar.
     </p>
-
-    <ul v-else class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-      <li v-for="user in store.users" :key="user.id" class="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4">
-        <img
-          v-if="user.photo"
-          :src="user.photo"
-          :alt="`Foto ${user.name}`"
-          width="48"
-          height="48"
-          class="h-12 w-12 rounded-full object-cover"
-        />
-        <span
-          v-else
-          class="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-100 text-lg font-bold text-indigo-800"
-          aria-hidden="true"
-        >
-          {{ user.name.charAt(0).toUpperCase() }}
+    <ul v-else class="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <li v-for="user in store.users" :key="user.id" class="panel flex items-center gap-4 p-4" data-testid="user-card">
+        <img v-if="user.photo" :src="resolveImageUrl(user.photo)" :alt="user.name" class="size-12 rounded-full object-cover" />
+        <span v-else class="grid size-12 place-items-center rounded-full bg-plum-900 font-bold text-white" aria-hidden="true">
+          {{ getInitials(user.name) }}
         </span>
         <div class="min-w-0">
-          <p class="truncate font-semibold text-slate-900">{{ user.name }}</p>
-          <p class="truncate text-sm text-slate-700">{{ user.email }}</p>
-          <p class="text-xs text-slate-700">Bergabung {{ formatDateTime(user.created_at) }}</p>
+          <p class="truncate font-bold">{{ user.name }}</p>
+          <p class="truncate text-sm text-slate-600">{{ user.email }}</p>
+          <p class="text-xs text-slate-600">Bergabung {{ formatDate(user.created_at) }}</p>
         </div>
       </li>
     </ul>
-  </section>
+  </div>
 </template>

@@ -1,83 +1,118 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+// @ts-nocheck
+import { describe, expect, it } from "vitest";
 import Swal from "sweetalert2";
 import {
-  formatDateTime,
+  cn,
+  extractErrorMessage,
+  formatDate,
+  formatDateOnly,
   formatRupiah,
+  getInitials,
+  isValidEmail,
+  parseTimestamp,
+  resolveImageUrl,
   showConfirmDialog,
   showErrorDialog,
   showSuccessDialog,
-  toApiDateTime,
+  toApiDate,
+  validateCashFlowForm,
 } from "./toolsHelper";
 
-vi.mock("sweetalert2", () => ({ default: { fire: vi.fn() } }));
+describe("dialog SweetAlert2", () => {
+  it("showSuccessDialog & showErrorDialog memakai judul default atau kustom", () => {
+    showSuccessDialog("ok");
+    showSuccessDialog("ok", "Judul");
+    showErrorDialog("gagal");
+    showErrorDialog("gagal", "Judul");
+    const calls = Swal.fire.mock.calls.map(([o]) => [o.icon, o.title]);
+    expect(calls).toEqual([
+      ["success", "Berhasil"],
+      ["success", "Judul"],
+      ["error", "Terjadi kesalahan"],
+      ["error", "Judul"],
+    ]);
+  });
 
-beforeEach(() => {
-  vi.mocked(Swal.fire).mockReset();
+  it("showConfirmDialog mengembalikan hasil konfirmasi", async () => {
+    expect(await showConfirmDialog("hapus?")).toBe(true);
+    expect(Swal.fire.mock.calls[0][0].title).toBe("Apakah kamu yakin?");
+    Swal.fire.mockResolvedValueOnce({ isConfirmed: false });
+    expect(await showConfirmDialog("hapus?", "Judul")).toBe(false);
+    expect(Swal.fire.mock.calls[1][0].title).toBe("Judul");
+  });
 });
 
-describe("dialog helpers", () => {
-  it("showSuccessDialog menampilkan dialog sukses", async () => {
-    vi.mocked(Swal.fire).mockResolvedValue({ isConfirmed: true } as any);
-    await showSuccessDialog("Tersimpan");
-    expect(Swal.fire).toHaveBeenCalledWith(expect.objectContaining({ icon: "success", text: "Tersimpan" }));
+describe("format", () => {
+  it("cn menggabungkan dan me-merge class Tailwind", () => {
+    expect(cn("px-2 py-1", false && "hidden", "px-4")).toBe("py-1 px-4");
   });
 
-  it("showErrorDialog menampilkan dialog error", async () => {
-    vi.mocked(Swal.fire).mockResolvedValue({ isConfirmed: true } as any);
-    await showErrorDialog("Gagal");
-    expect(Swal.fire).toHaveBeenCalledWith(expect.objectContaining({ icon: "error", text: "Gagal" }));
+  it("formatRupiah", () => {
+    expect(formatRupiah(10000)).toMatch(/Rp\s?10\.000/);
+    expect(formatRupiah("abc")).toMatch(/Rp\s?0/);
+    expect(formatRupiah(undefined)).toMatch(/Rp\s?0/);
   });
 
-  it("showConfirmDialog mengembalikan true jika dikonfirmasi", async () => {
-    vi.mocked(Swal.fire).mockResolvedValue({ isConfirmed: true } as any);
-    await expect(showConfirmDialog("Yakin?", "Ya")).resolves.toBe(true);
-    expect(Swal.fire).toHaveBeenCalledWith(
-      expect.objectContaining({ showCancelButton: true, confirmButtonText: "Ya" })
+  it("parseTimestamp menerima format API dan ISO", () => {
+    expect(parseTimestamp(null)).toBeNull();
+    expect(parseTimestamp("bukan tanggal")).toBeNull();
+    expect(parseTimestamp("2024-10-05 22:00:00").getHours()).toBe(22);
+    expect(parseTimestamp("2024-10-05T08:34:04.000000Z")).toBeInstanceOf(Date);
+  });
+
+  it("formatDate & formatDateOnly", () => {
+    expect(formatDate(undefined)).toBe("-");
+    expect(formatDate("2024-10-05 22:00:00")).toMatch(/2024/);
+    expect(formatDateOnly(null)).toBe("-");
+    expect(formatDateOnly("2024-10-05 22:00:00")).toMatch(/2024/);
+    expect(formatDateOnly("2024-10-05 22:00:00")).not.toMatch(/22/);
+  });
+
+  it("toApiDate", () => {
+    expect(toApiDate("2024-10-05", "start")).toBe("2024-10-05 00:00:00");
+    expect(toApiDate("2024-10-05", "end")).toBe("2024-10-05 23:59:59");
+  });
+
+  it("getInitials", () => {
+    expect(getInitials("Abdullah Ubaid Khan")).toBe("AU");
+    expect(getInitials("delcom")).toBe("D");
+    expect(getInitials("   ")).toBe("?");
+    expect(getInitials(undefined)).toBe("?");
+  });
+
+  it("resolveImageUrl", () => {
+    expect(resolveImageUrl("")).toBe("");
+    expect(resolveImageUrl("https://x.test/a.png")).toBe("https://x.test/a.png");
+    expect(resolveImageUrl("img/profile/1.png")).toBe("https://open-api.delcom.org/img/profile/1.png");
+    expect(resolveImageUrl("/img/profile/1.png")).toBe("https://open-api.delcom.org/img/profile/1.png");
+  });
+
+  it("isValidEmail", () => {
+    expect(isValidEmail("a@b.co")).toBe(true);
+    expect(isValidEmail("a@b")).toBe(false);
+  });
+
+  it("extractErrorMessage", () => {
+    expect(extractErrorMessage({ message: "Data tidak valid", data: { email: ["Wajib", "Salah"], x: 1 } })).toBe(
+      "Data tidak valid\nWajib\nSalah",
     );
-  });
-
-  it("showConfirmDialog mengembalikan false jika dibatalkan", async () => {
-    vi.mocked(Swal.fire).mockResolvedValue({ isConfirmed: false } as any);
-    await expect(showConfirmDialog("Yakin?", "Ya")).resolves.toBe(false);
+    expect(extractErrorMessage({ message: "Gagal" })).toBe("Gagal");
+    expect(extractErrorMessage(null)).toBe("Terjadi kesalahan pada server");
   });
 });
 
-describe("formatRupiah", () => {
-  it("memformat angka dan string numerik", () => {
-    expect(formatRupiah(15000)).toMatch(/Rp\s15\.000/);
-    expect(formatRupiah("2500")).toMatch(/Rp\s2\.500/);
+describe("validateCashFlowForm", () => {
+  it("lolos jika semua valid", () => {
+    expect(validateCashFlowForm({ label: "gaji", nominal: "1000", description: "Gaji" })).toEqual({});
+    expect(validateCashFlowForm({ label: "gaji", nominal: 1, description: "Gaji" })).toEqual({});
   });
 
-  it("nilai tidak valid dianggap 0", () => {
-    expect(formatRupiah("abc")).toMatch(/Rp\s0/);
-  });
-});
-
-describe("formatDateTime", () => {
-  it("mengembalikan '-' untuk nilai kosong", () => {
-    expect(formatDateTime(null)).toBe("-");
-    expect(formatDateTime(undefined)).toBe("-");
-    expect(formatDateTime("")).toBe("-");
-  });
-
-  it("mengembalikan nilai asli jika bukan tanggal valid", () => {
-    expect(formatDateTime("bukan-tanggal")).toBe("bukan-tanggal");
-  });
-
-  it("memformat tanggal valid ke zona Asia/Jakarta", () => {
-    const text = formatDateTime("2024-10-05T10:30:00.000000Z");
-    expect(text).toMatch(/2024/);
-    expect(text).toMatch(/17[.:]30/);
-  });
-});
-
-describe("toApiDateTime", () => {
-  it("string kosong tetap kosong", () => {
-    expect(toApiDateTime("", false)).toBe("");
-  });
-
-  it("menambahkan jam awal dan akhir hari", () => {
-    expect(toApiDateTime("2024-10-05", false)).toBe("2024-10-05 00:00:00");
-    expect(toApiDateTime("2024-10-05", true)).toBe("2024-10-05 23:59:59");
+  it("melaporkan setiap field yang tidak valid", () => {
+    expect(validateCashFlowForm({ label: " ", nominal: "0", description: "" })).toEqual({
+      label: "Label wajib diisi",
+      nominal: "Nominal harus lebih dari 0",
+      description: "Keterangan wajib diisi",
+    });
+    expect(validateCashFlowForm({ label: "a", nominal: "", description: "b" }).nominal).toBeDefined();
   });
 });

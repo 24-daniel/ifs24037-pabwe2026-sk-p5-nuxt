@@ -1,29 +1,24 @@
-import { apiRequest } from "../../../helpers/apiHelper";
+import { apiPost } from "../../../helpers/apiHelper";
+
+export interface LoginPayload {
+  email: string;
+  password: string;
+}
+
+export interface RegisterPayload extends LoginPayload {
+  name: string;
+}
 
 export interface AuthUser {
   id: number;
   name: string;
   email: string;
-  photo?: string | null;
 }
 
-export interface LoginData {
-  token: string;
-  user: AuthUser;
-}
+export const login = ({ email, password }: LoginPayload) =>
+  apiPost<{ user: AuthUser; token: string }>("/auth/login", { email, password }, false);
 
-export function loginRequest(email: string, password: string) {
-  return apiRequest<LoginData>("/auth/login", {
-    method: "POST",
-    body: { email, password },
-    auth: false,
-  });
-}
+export const register = ({ name, email, password }: RegisterPayload) =>
+  apiPost("/auth/register", { name, email, password }, false);
 
-export function registerRequest(name: string, email: string, password: string) {
-  return apiRequest("/auth/register", {
-    method: "POST",
-    body: { name, email, password },
-    auth: false,
-  });
-}
+export const logout = () => apiPost("/auth/logout");

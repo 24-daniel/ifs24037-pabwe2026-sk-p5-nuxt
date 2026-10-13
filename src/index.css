@@ -1,5 +1,62 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  --color-plum-950: #2a0f33;
+  --color-plum-900: #43194f;
+  --color-plum-800: #56216a;
+  --color-plum-100: #efe3f3;
+  --color-plum-50: #f8f1fa;
+  --color-saffron-400: #f2b84b;
+  --color-gain-700: #0b6a4b;
+  --color-gain-50: #e2f5ec;
+  --color-loss-700: #a1232c;
+  --color-loss-50: #fce8e6;
+}
+
+@layer base {
+  body {
+    font-family: var(--font-sans);
+  }
+
+  button,
+  a,
+  [role="button"],
+  select,
+  label[for],
+  summary {
+    cursor: pointer;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-plum-800);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  .field {
+    @apply w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-500 focus:border-plum-800 focus:outline-none focus:ring-2 focus:ring-plum-800/25;
+  }
+  .field-error {
+    @apply mt-1 text-xs font-semibold text-loss-700;
+  }
+  .label {
+    @apply mb-1.5 block text-sm font-semibold text-slate-800;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60;
+  }
+  .btn-primary {
+    @apply bg-plum-900 text-white hover:bg-plum-800;
+  }
+  .btn-ghost {
+    @apply border border-slate-300 bg-white text-slate-800 hover:bg-plum-50;
+  }
+  .btn-danger {
+    @apply bg-loss-50 text-loss-700 hover:bg-loss-700 hover:text-white;
+  }
+  .panel {
+    @apply rounded-xl border border-slate-200 bg-white;
+  }
 }

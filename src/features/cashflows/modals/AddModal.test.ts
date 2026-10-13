@@ -1,89 +1,102 @@
+// @ts-nocheck
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { flushPromises } from "@vue/test-utils";
+import { fireEvent, screen, waitFor } from "@testing-library/vue";
+import Swal from "sweetalert2";
 import AddModal from "./AddModal.vue";
-import { addCashFlow } from "../api/cashFlowApi";
-import { showErrorDialog, showSuccessDialog } from "../../../helpers/toolsHelper";
-import { deferred, fail, ok, renderWithProviders } from "../../../test-utils";
+import * as api from "../api/cashFlowApi";
+import { deferred, renderWithProviders } from "../../../test-utils";
 
 vi.mock("../api/cashFlowApi");
-vi.mock("../../../helpers/toolsHelper", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../../../helpers/toolsHelper")>()),
-  showErrorDialog: vi.fn(),
-  showSuccessDialog: vi.fn(),
-}));
 
-beforeEach(() => {
-  vi.resetAllMocks();
-});
-
-const props = { open: true, labels: ["gaji", "makan"] };
-
-async function fillForm(wrapper: any) {
-  await wrapper.get("#add-type").setValue("outflow");
-  await wrapper.get("#add-source").setValue("savings");
-  await wrapper.get("#add-label").setValue("makan");
-  await wrapper.get("#add-nominal").setValue("25000");
-  await wrapper.get("#add-description").setValue("Makan siang");
-}
+const open = (extra = {}) => renderWithProviders(AddModal, { props: { open: true }, ...extra });
+const fillAll = async () => {
+  await fireEvent.click(screen.getByLabelText("Pengeluaran"));
+  await fireEvent.update(screen.getByLabelText("Sumber dana"), "savings");
+  await fireEvent.update(screen.getByLabelText("Label kategori"), "  makan ");
+  await fireEvent.update(screen.getByLabelText("Nominal (Rp)"), "35000");
+  await fireEvent.update(screen.getByLabelText("Keterangan"), " Makan siang ");
+};
+const submit = () => fireEvent.click(screen.getByRole("button", { name: "Simpan transaksi" }));
 
 describe("AddModal", () => {
-  it("tidak dirender saat tertutup", async () => {
-    const { wrapper } = await renderWithProviders(AddModal, { props: { ...props, open: false } });
-    expect(wrapper.find("[role='dialog']").exists()).toBe(false);
+  beforeEach(() => api.addCashFlow.mockResolvedValue({ status: "success", message: "Berhasil menambahkan data" }));
+
+  it("tidak merender apa pun saat tertutup", async () => {
+    await renderWithProviders(AddModal);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("menampilkan form dan opsi label", async () => {
-    const { wrapper } = await renderWithProviders(AddModal, { props });
-    expect(wrapper.get("#add-modal-title").text()).toBe("Tambah Arus Kas");
-    expect(wrapper.findAll("datalist option").map((o) => o.attributes("value"))).toEqual(["gaji", "makan"]);
+  it("menampilkan form dengan pilihan jenis, sumber, dan saran label", async () => {
+    const { container } = await open({ initialState: { cashFlows: { labels: ["gaji", "makan"] } } });
+    expect(screen.getByRole("dialog", { name: "Catat transaksi" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Pemasukan")).toBeChecked();
+    expect(screen.getByLabelText("Sumber dana")).toHaveValue("cash");
+    expect(container.querySelectorAll("#add-label-options option")).toHaveLength(2);
   });
 
-  it("submit berhasil mengirim payload, menampilkan dialog, dan reset form", async () => {
-    vi.mocked(addCashFlow).mockResolvedValue(ok({ cash_flow_id: 3 }, "Berhasil menambah"));
-    const { wrapper } = await renderWithProviders(AddModal, { props });
-    await fillForm(wrapper);
-    await wrapper.get("form").trigger("submit");
-    await flushPromises();
+  it("menampilkan error validasi", async () => {
+    await open();
+    await submit();
+    expect(screen.getByText("Label wajib diisi")).toBeInTheDocument();
+    expect(screen.getByText("Nominal harus lebih dari 0")).toBeInTheDocument();
+    expect(screen.getByText("Keterangan wajib diisi")).toBeInTheDocument();
+    expect(api.addCashFlow).not.toHaveBeenCalled();
+  });
 
-    expect(addCashFlow).toHaveBeenCalledWith({
+  it("berhasil mencatat transaksi, lalu emit saved dan close", async () => {
+    const { emitted } = await open();
+    await fillAll();
+    await submit();
+    await waitFor(() => expect(emitted().close).toHaveLength(1));
+    expect(api.addCashFlow).toHaveBeenCalledWith({
       type: "outflow",
       source: "savings",
       label: "makan",
-      nominal: 25000,
+      nominal: 35000,
       description: "Makan siang",
     });
-    expect(showSuccessDialog).toHaveBeenCalledWith("Berhasil menambah");
-    expect(wrapper.emitted("saved")).toHaveLength(1);
-    expect((wrapper.get("#add-label").element as HTMLInputElement).value).toBe("");
-    expect((wrapper.get("#add-type").element as HTMLSelectElement).value).toBe("inflow");
-    expect((wrapper.get("#add-source").element as HTMLSelectElement).value).toBe("cash");
+    expect(emitted().saved).toHaveLength(1);
+    expect(Swal.fire.mock.calls[0][0]).toMatchObject({ icon: "success", title: "Transaksi dicatat" });
   });
 
-  it("submit gagal menampilkan dialog error", async () => {
-    vi.mocked(addCashFlow).mockResolvedValue(fail("Data tidak valid"));
-    const { wrapper } = await renderWithProviders(AddModal, { props });
-    await fillForm(wrapper);
-    await wrapper.get("form").trigger("submit");
-    await flushPromises();
-    expect(showErrorDialog).toHaveBeenCalledWith("Data tidak valid");
-    expect(wrapper.emitted("saved")).toBeUndefined();
+  it("gagal mencatat menampilkan dialog error dan tidak menutup modal", async () => {
+    api.addCashFlow.mockResolvedValue({ status: "fail", message: "Data tidak valid", data: { label: ["Terlalu panjang"] } });
+    const { emitted } = await open();
+    await fillAll();
+    await submit();
+    await waitFor(() => expect(Swal.fire).toHaveBeenCalled());
+    expect(Swal.fire.mock.calls[0][0]).toMatchObject({ icon: "error", text: "Data tidak valid\nTerlalu panjang" });
+    expect(emitted().close).toBeUndefined();
   });
 
-  it("tombol simpan menampilkan status proses", async () => {
-    const pending = deferred<any>();
-    vi.mocked(addCashFlow).mockReturnValue(pending.promise);
-    const { wrapper } = await renderWithProviders(AddModal, { props });
-    await wrapper.get("form").trigger("submit");
-    expect(wrapper.get("button[type='submit']").text()).toBe("Menyimpan...");
-    pending.resolve(fail("x"));
-    await flushPromises();
-    expect(wrapper.get("button[type='submit']").text()).toBe("Simpan");
+  it("tombol menampilkan status menyimpan", async () => {
+    const pending = deferred();
+    api.addCashFlow.mockReturnValue(pending.promise);
+    await open();
+    await fillAll();
+    await submit();
+    expect(await screen.findByRole("button", { name: "Menyimpan…" })).toBeDisabled();
+    pending.resolve({ status: "fail", message: "x" });
   });
 
-  it("tombol tutup dan batal memicu event close", async () => {
-    const { wrapper } = await renderWithProviders(AddModal, { props });
-    await wrapper.get("button[aria-label='Tutup']").trigger("click");
-    await wrapper.get("button[type='button']:not([aria-label])").trigger("click");
-    expect(wrapper.emitted("close")).toHaveLength(2);
+  it("tombol batal dan tutup mengirim close", async () => {
+    const { emitted } = await open();
+    await fireEvent.click(screen.getByRole("button", { name: "Batal" }));
+    await fireEvent.click(screen.getByLabelText("Tutup"));
+    expect(emitted().close).toHaveLength(2);
+  });
+
+  it("form direset setiap kali dibuka kembali", async () => {
+    const { rerender } = await open();
+    await fillAll();
+    await fireEvent.update(screen.getByLabelText("Label kategori"), "");
+    await submit();
+    expect(screen.getByText("Label wajib diisi")).toBeInTheDocument();
+    await rerender({ open: false });
+    await rerender({ open: true });
+    expect(screen.getByLabelText("Label kategori")).toHaveValue("");
+    expect(screen.getByLabelText("Pemasukan")).toBeChecked();
+    expect(screen.getByLabelText("Sumber dana")).toHaveValue("cash");
+    expect(screen.queryByText("Label wajib diisi")).not.toBeInTheDocument();
   });
 });

@@ -1,84 +1,78 @@
 <script setup lang="ts">
-import { RouterLink, useRouter } from "vue-router";
-import { useAuthStore } from "../states/authStore";
+import { ref } from "vue";
+import { useRouter } from "vue-router";
 import { useInput } from "../../../hooks/useInput";
-import { showErrorDialog, showSuccessDialog } from "../../../helpers/toolsHelper";
+import { useAuthStore } from "../states/authStore";
+import { isSuccess } from "../../../helpers/apiHelper";
+import {
+  extractErrorMessage,
+  isValidEmail,
+  showErrorDialog,
+  showSuccessDialog,
+} from "../../../helpers/toolsHelper";
 
 const router = useRouter();
 const authStore = useAuthStore();
-const [name, onNameChange] = useInput("");
-const [email, onEmailChange] = useInput("");
-const [password, onPasswordChange] = useInput("");
+const [name] = useInput("");
+const [email] = useInput("");
+const [password] = useInput("");
+const errors = ref<Record<string, string>>({});
+
+function validate(): boolean {
+  const result: Record<string, string> = {};
+  if (!name.value.trim()) result.name = "Nama wajib diisi";
+  if (!email.value.trim()) result.email = "Email wajib diisi";
+  else if (!isValidEmail(email.value)) result.email = "Format email tidak valid";
+  if (password.value.length < 6) result.password = "Kata sandi minimal 6 karakter";
+  errors.value = result;
+  return Object.keys(result).length === 0;
+}
 
 async function onSubmit() {
-  const result = await authStore.register(name.value, email.value, password.value);
-  if (result.success) {
-    await showSuccessDialog(result.message);
-    await router.replace("/auth/login");
+  if (!validate()) return;
+  const response = await authStore.register({
+    name: name.value.trim(),
+    email: email.value.trim(),
+    password: password.value,
+  });
+  if (isSuccess(response)) {
+    await showSuccessDialog(response.message, "Pendaftaran berhasil");
+    router.push("/auth/login");
   } else {
-    await showErrorDialog(result.message);
+    showErrorDialog(extractErrorMessage(response), "Pendaftaran gagal");
   }
 }
 </script>
 
 <template>
-  <section aria-labelledby="register-title">
-    <h1 id="register-title" class="text-2xl font-bold text-slate-900">Buat akun</h1>
-    <p class="mt-1 text-slate-700">Daftar untuk mulai mencatat arus kas.</p>
+  <div>
+    <h1 class="text-3xl font-extrabold tracking-tight">Buat akun baru</h1>
+    <p class="mt-2 text-sm text-slate-600">Daftar gratis, lalu catat transaksi pertamamu.</p>
 
-    <form class="mt-6 space-y-4" @submit.prevent="onSubmit">
+    <form class="mt-8 space-y-5" novalidate @submit.prevent="onSubmit">
       <div>
-        <label for="register-name-input" class="mb-1 block text-sm font-semibold text-slate-800">Nama lengkap</label>
-        <input
-          id="register-name-input"
-          type="text"
-          required
-          autocomplete="name"
-          placeholder="Nama kamu"
-          class="w-full rounded-lg border border-slate-400 px-3 py-2 text-slate-900 focus:outline-2 focus:outline-indigo-700"
-          :value="name"
-          @input="onNameChange"
-        />
+        <label class="label" for="name">Nama lengkap</label>
+        <input id="name" v-model="name" type="text" class="field" placeholder="Nama lengkap" autocomplete="name" />
+        <p v-if="errors.name" class="field-error">{{ errors.name }}</p>
       </div>
       <div>
-        <label for="register-email-input" class="mb-1 block text-sm font-semibold text-slate-800">Email</label>
-        <input
-          id="register-email-input"
-          type="email"
-          required
-          autocomplete="email"
-          placeholder="nama@email.com"
-          class="w-full rounded-lg border border-slate-400 px-3 py-2 text-slate-900 focus:outline-2 focus:outline-indigo-700"
-          :value="email"
-          @input="onEmailChange"
-        />
+        <label class="label" for="email">Email</label>
+        <input id="email" v-model="email" type="email" class="field" placeholder="nama@del.ac.id" autocomplete="email" />
+        <p v-if="errors.email" class="field-error">{{ errors.email }}</p>
       </div>
       <div>
-        <label for="register-password-input" class="mb-1 block text-sm font-semibold text-slate-800">Kata sandi</label>
-        <input
-          id="register-password-input"
-          type="password"
-          required
-          autocomplete="new-password"
-          placeholder="Buat kata sandi"
-          class="w-full rounded-lg border border-slate-400 px-3 py-2 text-slate-900 focus:outline-2 focus:outline-indigo-700"
-          :value="password"
-          @input="onPasswordChange"
-        />
+        <label class="label" for="password">Kata sandi</label>
+        <input id="password" v-model="password" type="password" class="field" placeholder="Minimal 6 karakter" autocomplete="new-password" />
+        <p v-if="errors.password" class="field-error">{{ errors.password }}</p>
       </div>
-      <button
-        id="register-submit-button"
-        type="submit"
-        :disabled="authStore.isLoading"
-        class="w-full rounded-lg bg-indigo-700 px-4 py-2.5 font-semibold text-white hover:bg-indigo-800 focus:outline-2 focus:outline-offset-2 focus:outline-indigo-700 disabled:opacity-60"
-      >
-        {{ authStore.isLoading ? "Memproses..." : "Daftar" }}
+      <button type="submit" class="btn btn-primary w-full" :disabled="authStore.isLoading">
+        {{ authStore.isLoading ? "Memproses…" : "Daftar" }}
       </button>
     </form>
 
-    <p class="mt-6 text-center text-sm text-slate-700">
+    <p class="mt-6 text-sm text-slate-600">
       Sudah punya akun?
-      <RouterLink to="/auth/login" class="font-semibold text-indigo-700 underline">Masuk</RouterLink>
+      <RouterLink to="/auth/login" class="font-semibold text-plum-900 underline">Masuk</RouterLink>
     </p>
-  </section>
+  </div>
 </template>

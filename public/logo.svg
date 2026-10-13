@@ -1,1 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Delcom Cash Flow"><rect width="64" height="64" rx="14" fill="#4f46e5"/><path d="M14 40l12-12 8 8 16-18" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="50" cy="18" r="4" fill="#fbbf24"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Delcom Cash Flow">
+  <rect width="64" height="64" rx="14" fill="#43194f"/>
+  <path d="M14 40h22M14 28h36" stroke="#fff" stroke-width="5" stroke-linecap="round"/>
+  <path d="M42 40l8-8-8-8" fill="none" stroke="#f2b84b" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" transform="translate(0 12) scale(1 -1) translate(0 -64)"/>
+  <circle cx="46" cy="44" r="5" fill="#f2b84b"/>
+</svg>

@@ -1,40 +1,51 @@
+// @ts-nocheck
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, screen, waitFor } from "@testing-library/vue";
 import CashFlowLayout from "./CashFlowLayout.vue";
-import { getMe } from "../../users/api/userApi";
-import { putAccessToken } from "../../../helpers/apiHelper";
-import { ok, renderWithProviders, sampleUser } from "../../../test-utils";
+import * as userApi from "../../users/api/userApi";
+import { getAccessToken, putAccessToken } from "../../../helpers/apiHelper";
+import { renderWithProviders } from "../../../test-utils";
 
 vi.mock("../../users/api/userApi");
 
-beforeEach(() => {
-  vi.resetAllMocks();
-  vi.mocked(getMe).mockResolvedValue(ok({ user: sampleUser }));
-});
-
 describe("CashFlowLayout", () => {
-  it("tamu dialihkan ke halaman login dan konten tidak dirender", async () => {
-    const { wrapper, router } = await renderWithProviders(CashFlowLayout, { route: "/" });
-    expect(router.currentRoute.value.path).toBe("/auth/login");
-    expect(wrapper.find("main").exists()).toBe(false);
-    expect(getMe).not.toHaveBeenCalled();
+  beforeEach(() =>
+    userApi.getProfile.mockResolvedValue({
+      status: "success",
+      data: { user: { id: 1, name: "Abdullah Ubaid", email: "a@b.co", photo: "" } },
+    }),
+  );
+
+  it("menyusun sidebar, navbar, dan konten rute, serta memuat profil", async () => {
+    await renderWithProviders(CashFlowLayout);
+    expect(screen.getByLabelText("Navigasi utama")).toBeInTheDocument();
+    expect(screen.getByRole("banner")).toBeInTheDocument();
+    expect(screen.getByRole("main")).toBeInTheDocument();
+    expect(screen.getByTestId("blank")).toBeInTheDocument();
+    expect(await screen.findByText("Abdullah Ubaid")).toBeInTheDocument();
+    expect(userApi.getProfile).toHaveBeenCalledTimes(1);
   });
 
-  it("pengguna login melihat navbar, sidebar, dan konten", async () => {
-    putAccessToken("tok");
-    const { wrapper, router } = await renderWithProviders(CashFlowLayout, { route: "/" });
+  it("token tidak valid (401) mengembalikan pengguna ke halaman login", async () => {
+    putAccessToken("kedaluwarsa");
+    userApi.getProfile.mockResolvedValue({ status: "fail", message: "Unauthenticated.", httpStatus: 401 });
+    const { router } = await renderWithProviders(CashFlowLayout);
+    await waitFor(() => expect(router.currentRoute.value.path).toBe("/auth/login"));
+    expect(getAccessToken()).toBeNull();
+  });
+
+  it("kegagalan lain tidak mengalihkan halaman", async () => {
+    userApi.getProfile.mockResolvedValue({ status: "fail", message: "Server error", httpStatus: 500 });
+    const { router } = await renderWithProviders(CashFlowLayout);
+    await waitFor(() => expect(userApi.getProfile).toHaveBeenCalled());
     expect(router.currentRoute.value.path).toBe("/");
-    expect(wrapper.find("aside").exists()).toBe(true);
-    expect(wrapper.find("header").exists()).toBe(true);
-    expect(wrapper.find("main [data-testid='blank']").exists()).toBe(true);
   });
 
   it("tombol menu membuka dan backdrop menutup sidebar", async () => {
-    putAccessToken("tok");
-    const { wrapper } = await renderWithProviders(CashFlowLayout, { route: "/" });
-    expect(wrapper.find("button[aria-label='Tutup menu navigasi']").exists()).toBe(false);
-    await wrapper.get("button[aria-label='Buka menu navigasi']").trigger("click");
-    expect(wrapper.find("button[aria-label='Tutup menu navigasi']").exists()).toBe(true);
-    await wrapper.get("button[aria-label='Tutup menu navigasi']").trigger("click");
-    expect(wrapper.find("button[aria-label='Tutup menu navigasi']").exists()).toBe(false);
+    await renderWithProviders(CashFlowLayout);
+    expect(screen.queryByTestId("sidebar-backdrop")).not.toBeInTheDocument();
+    await fireEvent.click(screen.getByLabelText("Buka menu"));
+    await fireEvent.click(screen.getByTestId("sidebar-backdrop"));
+    expect(screen.queryByTestId("sidebar-backdrop")).not.toBeInTheDocument();
   });
 });

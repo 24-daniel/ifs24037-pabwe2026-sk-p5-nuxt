@@ -1,66 +1,104 @@
 import Swal from "sweetalert2";
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+import type { ApiResponse } from "./apiHelper";
 
-export function showSuccessDialog(message: string) {
-  return Swal.fire({
-    icon: "success",
-    title: "Berhasil",
-    text: message,
-    confirmButtonColor: "#4338ca",
-  });
-}
+const colors = { confirmButtonColor: "#43194f", cancelButtonColor: "#475569" };
 
-export function showErrorDialog(message: string) {
-  return Swal.fire({
-    icon: "error",
-    title: "Gagal",
-    text: message,
-    confirmButtonColor: "#4338ca",
-  });
-}
+export const showSuccessDialog = (message: string, title = "Berhasil") =>
+  Swal.fire({ icon: "success", title, text: message, ...colors });
 
-export async function showConfirmDialog(message: string, confirmText: string): Promise<boolean> {
+export const showErrorDialog = (message: string, title = "Terjadi kesalahan") =>
+  Swal.fire({ icon: "error", title, text: message, ...colors });
+
+/** Mengembalikan true jika pengguna menekan tombol konfirmasi. */
+export async function showConfirmDialog(message: string, title = "Apakah kamu yakin?"): Promise<boolean> {
   const result = await Swal.fire({
     icon: "warning",
-    title: "Konfirmasi",
+    title,
     text: message,
     showCancelButton: true,
-    confirmButtonText: confirmText,
+    confirmButtonText: "Ya, lanjutkan",
     cancelButtonText: "Batal",
-    confirmButtonColor: "#b91c1c",
+    ...colors,
   });
   return result.isConfirmed;
 }
 
-export function formatRupiah(value: number | string): string {
-  return new Intl.NumberFormat("id-ID", {
+/** Menggabungkan class Tailwind secara aman (clsx + tailwind-merge). */
+export const cn = (...inputs: ClassValue[]): string => twMerge(clsx(inputs));
+
+export const formatRupiah = (value: number | string | null | undefined): string =>
+  new Intl.NumberFormat("id-ID", {
     style: "currency",
     currency: "IDR",
     maximumFractionDigits: 0,
   }).format(Number(value) || 0);
+
+/** Menerima "2024-10-05 22:00:00" maupun ISO 8601; mengembalikan Date atau null. */
+export function parseTimestamp(value?: string | null): Date | null {
+  if (!value) return null;
+  const text = String(value);
+  const date = new Date(text.includes("T") ? text : text.replace(" ", "T"));
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
-export function formatDateTime(value?: string | null): string {
-  if (!value) {
-    return "-";
-  }
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-  return new Intl.DateTimeFormat("id-ID", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "Asia/Jakarta",
-  }).format(date);
+/** Tanggal dan waktu, mis. "5 Okt 2024 19.09". */
+export function formatDate(value?: string | null): string {
+  const date = parseTimestamp(value);
+  if (!date) return "-";
+  return new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short" }).format(date);
 }
 
-/** Mengubah nilai input date (YYYY-MM-DD) menjadi timestamp query API. */
-export function toApiDateTime(date: string, endOfDay: boolean): string {
-  if (!date) {
-    return "";
-  }
-  return `${date} ${endOfDay ? "23:59:59" : "00:00:00"}`;
+/** Hanya tanggal, mis. "5 Okt 2024". */
+export function formatDateOnly(value?: string | null): string {
+  const date = parseTimestamp(value);
+  if (!date) return "-";
+  return new Intl.DateTimeFormat("id-ID", { dateStyle: "medium" }).format(date);
+}
+
+/** "2024-10-05" (input date) -> "2024-10-05 00:00:00" atau "2024-10-05 23:59:59". */
+export function toApiDate(value: string, edge: "start" | "end"): string {
+  return `${value} ${edge === "start" ? "00:00:00" : "23:59:59"}`;
+}
+
+export const isValidEmail = (value: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value).trim());
+
+/** Menggabungkan pesan utama dan detail validasi dari respons gagal. */
+export function extractErrorMessage(response?: Partial<ApiResponse> | null): string {
+  const details = Object.values((response?.data as Record<string, unknown>) ?? {})
+    .flat()
+    .filter((item): item is string => typeof item === "string");
+  const message = response?.message || "Terjadi kesalahan pada server";
+  return details.length ? `${message}\n${details.join("\n")}` : message;
+}
+
+/** Path relatif dari API (mis. "img/profile/1.png") dijadikan URL absolut. */
+export function resolveImageUrl(path?: string | null): string {
+  if (!path) return "";
+  if (/^https?:\/\//.test(path)) return path;
+  return `${new URL(DELCOM_BASEURL).origin}/${String(path).replace(/^\//, "")}`;
+}
+
+export const getInitials = (name?: string | null): string =>
+  String(name || "?")
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join("") || "?";
+
+export interface CashFlowFormInput {
+  label: string;
+  nominal: string | number;
+  description: string;
+}
+
+/** Validasi form transaksi arus kas (dipakai AddModal & ChangeModal). */
+export function validateCashFlowForm({ label, nominal, description }: CashFlowFormInput): Record<string, string> {
+  const errors: Record<string, string> = {};
+  if (!String(label).trim()) errors.label = "Label wajib diisi";
+  if (!(Number(nominal) > 0)) errors.nominal = "Nominal harus lebih dari 0";
+  if (!String(description).trim()) errors.description = "Keterangan wajib diisi";
+  return errors;
 }

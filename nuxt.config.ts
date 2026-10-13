@@ -7,11 +7,11 @@ export default defineNuxtConfig({
   compatibilityDate: "2024-11-01",
   devtools: { enabled: false },
   telemetry: false,
-  // SPA mode (client-side routing and storage)
+  // Matikan SSR -> mode SPA (routing & penyimpanan token di sisi klien)
   ssr: false,
-  // Let Nuxt look into src/ for application source files
+  // Nuxt membaca kode aplikasi dari src/
   srcDir: "src/",
-  // Enable vue-router; routes are supplied by src/router.options.ts
+  // Aktifkan vue-router; rute disuplai oleh src/router.options.ts
   pages: true,
   css: ["~/index.css"],
   modules: ["@pinia/nuxt"],
@@ -19,20 +19,11 @@ export default defineNuxtConfig({
     plugins: [tailwindcss()],
     define: {
       DELCOM_BASEURL: JSON.stringify(
-        process.env.VITE_DELCOM_BASEURL || "https://open-api.delcom.org/api/v1"
+        process.env.VITE_DELCOM_BASEURL || "https://open-api.delcom.org/api/v1",
       ),
     },
     build: {
       chunkSizeWarningLimit: 1500,
-      rollupOptions: {
-        output: {
-          manualChunks(id) {
-            if (id.includes("node_modules")) {
-              return "vendor";
-            }
-          },
-        },
-      },
     },
   },
   devServer: {
@@ -40,31 +31,22 @@ export default defineNuxtConfig({
   },
   nitro: {
     devPort: customPort,
-    externals: {
-      inline: ["@vue/shared"],
-    },
   },
   app: {
     head: {
       title: "Delcom Cash Flow",
-      htmlAttrs: {
-        lang: "id",
-      },
+      htmlAttrs: { lang: "id" },
       meta: [
         {
           name: "description",
           content:
-            "Delcom Cash Flow - aplikasi pencatatan pemasukan dan pengeluaran kas, tabungan, dan pinjaman.",
+            "Delcom Cash Flow: catat pemasukan dan pengeluaran, pantau saldo tunai, tabungan, dan pinjaman dalam satu dashboard.",
         },
       ],
       link: [
         { rel: "icon", type: "image/svg+xml", href: "/logo.svg" },
         { rel: "preconnect", href: "https://fonts.googleapis.com" },
-        {
-          rel: "preconnect",
-          href: "https://fonts.gstatic.com",
-          crossorigin: "",
-        },
+        { rel: "preconnect", href: "https://fonts.gstatic.com", crossorigin: "" },
         {
           rel: "stylesheet",
           href: "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600&display=swap",

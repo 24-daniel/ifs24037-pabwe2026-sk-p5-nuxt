@@ -1,30 +1,20 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { loginRequest, registerRequest } from "./authApi";
-import { apiRequest } from "../../../helpers/apiHelper";
+// @ts-nocheck
+import { describe, expect, it, vi } from 'vitest'
+import * as authApi from './authApi'
+import * as apiHelper from '../../../helpers/apiHelper'
 
-vi.mock("../../../helpers/apiHelper", () => ({ apiRequest: vi.fn() }));
+vi.mock('../../../helpers/apiHelper', () => ({ apiPost: vi.fn(() => Promise.resolve({ status: 'success' })) }))
 
-beforeEach(() => {
-  vi.mocked(apiRequest).mockReset();
-  vi.mocked(apiRequest).mockResolvedValue({ success: true, message: "ok", data: null });
-});
+describe('authApi', () => {
+  it('login & register tanpa token', async () => {
+    await authApi.login({ email: 'a@b.co', password: 'x', extra: 1 })
+    await authApi.register({ name: 'N', email: 'a@b.co', password: 'x' })
+    expect(apiHelper.apiPost).toHaveBeenNthCalledWith(1, '/auth/login', { email: 'a@b.co', password: 'x' }, false)
+    expect(apiHelper.apiPost).toHaveBeenNthCalledWith(2, '/auth/register', { name: 'N', email: 'a@b.co', password: 'x' }, false)
+  })
 
-describe("authApi", () => {
-  it("loginRequest memanggil POST /auth/login tanpa token", async () => {
-    await loginRequest("a@b.c", "rahasia");
-    expect(apiRequest).toHaveBeenCalledWith("/auth/login", {
-      method: "POST",
-      body: { email: "a@b.c", password: "rahasia" },
-      auth: false,
-    });
-  });
-
-  it("registerRequest memanggil POST /auth/register tanpa token", async () => {
-    await registerRequest("Budi", "a@b.c", "rahasia");
-    expect(apiRequest).toHaveBeenCalledWith("/auth/register", {
-      method: "POST",
-      body: { name: "Budi", email: "a@b.c", password: "rahasia" },
-      auth: false,
-    });
-  });
-});
+  it('logout memakai token', async () => {
+    await authApi.logout()
+    expect(apiHelper.apiPost).toHaveBeenCalledWith('/auth/logout')
+  })
+})

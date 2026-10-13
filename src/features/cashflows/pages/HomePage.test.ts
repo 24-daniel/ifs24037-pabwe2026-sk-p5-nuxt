@@ -1,214 +1,217 @@
+// @ts-nocheck
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { flushPromises } from "@vue/test-utils";
+import { fireEvent, screen, waitFor, within } from "@testing-library/vue";
+import Swal from "sweetalert2";
 import HomePage from "./HomePage.vue";
-import {
-  addCashFlow,
-  deleteAllCashFlows,
-  deleteCashFlow,
-  getCashFlows,
-  getLabels,
-  updateCashFlow,
-} from "../api/cashFlowApi";
-import {
-  showConfirmDialog,
-  showErrorDialog,
-  showSuccessDialog,
-} from "../../../helpers/toolsHelper";
-import { fail, inflowItem, ok, outflowItem, rawStats, renderWithProviders } from "../../../test-utils";
+import * as api from "../api/cashFlowApi";
+import { deferred, makeCashFlow, renderWithProviders } from "../../../test-utils";
 
 vi.mock("../api/cashFlowApi");
-vi.mock("../../../helpers/toolsHelper", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../../../helpers/toolsHelper")>()),
-  showConfirmDialog: vi.fn(),
-  showErrorDialog: vi.fn(),
-  showSuccessDialog: vi.fn(),
-}));
 
-const listResponse = () => ok({ cash_flows: [inflowItem, outflowItem], stats: rawStats });
+const salary = makeCashFlow({ id: 2, type: "inflow", source: "cash", label: "gaji", nominal: 2500000, description: "Gaji bulanan" });
+const soap = makeCashFlow({ id: 3, type: "outflow", source: "cash", label: "alat-mandi", nominal: 100000 });
+const keyboard = makeCashFlow({ id: 4, type: "outflow", source: "savings", label: "alat-elektronik", nominal: 400000 });
+const stats = {
+  cashflow: 2000000,
+  total_inflow: 2500000,
+  total_outflow: 500000,
+  total_inflow_cash: 2500000,
+  total_outflow_cash: 100000,
+  total_outflow_savings: 400000,
+};
+const daily = {
+  stats_inflow: { "04-10-2024": 0, "05-10-2024": 2500000 },
+  stats_outflow: { "04-10-2024": 0, "05-10-2024": 500000 },
+  stats_cashflow: {},
+};
+const monthly = {
+  stats_inflow: { "09-2024": 1000000, "10-2024": 2500000 },
+  stats_outflow: { "10-2024": 500000 }, // sengaja tanpa kunci "09-2024"
+  stats_cashflow: {},
+};
+const ok = (data) => ({ status: "success", message: "ok", data });
+const fail = { status: "fail", message: "Gagal total" };
 
-beforeEach(() => {
-  vi.resetAllMocks();
-  vi.mocked(getCashFlows).mockResolvedValue(listResponse());
-  vi.mocked(getLabels).mockResolvedValue(ok({ labels: ["gaji", "makan"] }));
-});
+const render = (initialState = {}) => renderWithProviders(HomePage, { route: "/", initialState });
+const rows = () => screen.getAllByTestId("cashflow-row");
+const row = (label) => rows().find((el) => within(el).queryByText(label));
+const lastParams = () => api.getCashFlows.mock.calls.at(-1)[0];
 
-const emptyFilters = { type: "", source: "", label: "", start_date: "", end_date: "" };
-
-describe("HomePage - tampilan", () => {
-  it("memuat data awal tanpa filter dan menampilkan kartu ringkasan", async () => {
-    const { wrapper } = await renderWithProviders(HomePage);
-    expect(getCashFlows).toHaveBeenCalledWith(emptyFilters);
-    expect(getLabels).toHaveBeenCalledTimes(1);
-    const text = wrapper.text();
-    expect(text).toContain("Total Saldo Kas Bersih");
-    expect(text).toMatch(/Rp\s975\.000/);
-    expect(text).toMatch(/Rp\s1\.000\.000/);
-    expect(text).toContain("Saldo Rekening Tabungan");
-    expect(text).toContain("Saldo Pinjaman");
+describe("HomePage", () => {
+  beforeEach(() => {
+    api.getCashFlows.mockResolvedValue(ok({ cash_flows: [salary, soap, keyboard], stats }));
+    api.getLabels.mockResolvedValue(ok({ labels: ["gaji", "alat-mandi"] }));
+    api.getStatsDaily.mockResolvedValue(ok(daily));
+    api.getStatsMonthly.mockResolvedValue(ok(monthly));
+    api.deleteCashFlow.mockResolvedValue({ status: "success", message: "Berhasil menghapus data" });
+    api.deleteAllCashFlows.mockResolvedValue({ status: "success", message: "Berhasil menghapus semua data cash flow" });
+    api.addCashFlow.mockResolvedValue({ status: "success", message: "Berhasil menambahkan data" });
+    api.changeCashFlow.mockResolvedValue({ status: "success", message: "Berhasil mengubah data" });
   });
 
-  it("menampilkan baris transaksi dengan badge dan aksi", async () => {
-    const { wrapper } = await renderWithProviders(HomePage);
-    const rows = wrapper.findAll("tbody tr");
-    expect(rows).toHaveLength(2);
-    expect(rows[0].text()).toContain("gaji");
-    expect(rows[0].text()).toContain("Pemasukan");
-    expect(rows[0].text()).toContain("Tunai");
-    expect(rows[1].text()).toContain("Pengeluaran");
-    expect(rows[1].text()).toContain("Tabungan");
-    expect(rows[0].get("a").attributes("href")).toBe("/cash-flows/1");
+  it("menampilkan kartu metrik ringkasan keuangan", async () => {
+    await render();
+    await waitFor(() => expect(rows()).toHaveLength(3));
+    expect(within(screen.getByTestId("metric-balance")).getByText(/2\.000\.000/)).toBeInTheDocument();
+    expect(screen.getByText("Total saldo kas bersih")).toBeInTheDocument();
+    expect(within(screen.getByTestId("metric-inflow")).getByText(/2\.500\.000/)).toBeInTheDocument();
+    expect(within(screen.getByTestId("metric-outflow")).getByText(/500\.000/)).toBeInTheDocument();
+    expect(within(screen.getByTestId("metric-cash")).getByText(/2\.400\.000/)).toBeInTheDocument();
+    expect(within(screen.getByTestId("metric-savings")).getByText(/-.*400\.000/)).toBeInTheDocument();
+    expect(within(screen.getByTestId("metric-loans")).getByText(/Rp\s?0/)).toBeInTheDocument();
   });
 
-  it("menampilkan status memuat", async () => {
-    vi.mocked(getCashFlows).mockReturnValue(new Promise(() => {}));
-    const { wrapper } = await renderWithProviders(HomePage);
-    expect(wrapper.text()).toContain("Memuat data...");
+  it("menampilkan tabel transaksi dengan badge jenis dan tanda nominal", async () => {
+    await render();
+    await waitFor(() => expect(rows()).toHaveLength(3));
+    expect(api.getCashFlows).toHaveBeenCalledWith({});
+    const inflow = within(row("gaji"));
+    expect(inflow.getByText("Pemasukan")).toBeInTheDocument();
+    expect(inflow.getByText("Tunai")).toBeInTheDocument();
+    expect(inflow.getByText(/^\+/)).toHaveTextContent(/2\.500\.000/);
+    const outflow = within(row("alat-elektronik"));
+    expect(outflow.getByText("Pengeluaran")).toBeInTheDocument();
+    expect(outflow.getByText("Tabungan")).toBeInTheDocument();
+    expect(outflow.getByText(/^-/)).toHaveTextContent(/400\.000/);
+    expect(screen.getByRole("link", { name: "Lihat detail gaji" })).toHaveAttribute("href", "/cash-flows/2");
   });
 
-  it("menampilkan keadaan kosong", async () => {
-    vi.mocked(getCashFlows).mockResolvedValue(ok({ cash_flows: [], stats: {} }));
-    const { wrapper } = await renderWithProviders(HomePage);
-    expect(wrapper.text()).toContain("Belum ada catatan arus kas.");
-  });
-});
-
-describe("HomePage - filter", () => {
-  it("menerapkan filter dengan format tanggal API", async () => {
-    const { wrapper } = await renderWithProviders(HomePage);
-    await wrapper.get("#filter-type").setValue("inflow");
-    await wrapper.get("#filter-source").setValue("cash");
-    await wrapper.get("#filter-label").setValue("gaji");
-    await wrapper.get("#filter-start").setValue("2024-10-01");
-    await wrapper.get("#filter-end").setValue("2024-10-31");
-    await wrapper.get("form[aria-label='Filter transaksi']").trigger("submit");
-    await flushPromises();
-    expect(getCashFlows).toHaveBeenLastCalledWith({
-      type: "inflow",
-      source: "cash",
-      label: "gaji",
-      start_date: "2024-10-01 00:00:00",
-      end_date: "2024-10-31 23:59:59",
-    });
+  it("menampilkan status memuat dan keadaan kosong", async () => {
+    const pending = deferred();
+    api.getCashFlows.mockReturnValue(pending.promise);
+    await render();
+    expect(screen.getByText("Memuat transaksi…")).toBeInTheDocument();
+    pending.resolve(ok({ cash_flows: [], stats: {} }));
+    expect(await screen.findByText(/Belum ada transaksi yang cocok/)).toBeInTheDocument();
   });
 
-  it("reset filter mengosongkan semua kriteria", async () => {
-    const { wrapper } = await renderWithProviders(HomePage);
-    await wrapper.get("#filter-type").setValue("outflow");
-    const resetButton = wrapper.findAll("button").find((b) => b.text().includes("Reset Filter"))!;
-    await resetButton.trigger("click");
-    await flushPromises();
-    expect(getCashFlows).toHaveBeenLastCalledWith(emptyFilters);
-    expect((wrapper.get("#filter-type").element as HTMLSelectElement).value).toBe("");
-  });
-});
-
-describe("HomePage - hapus satu transaksi", () => {
-  const deleteButton = (wrapper: any) => wrapper.get("button[aria-label='Hapus gaji']");
-
-  it("berhasil setelah konfirmasi", async () => {
-    vi.mocked(showConfirmDialog).mockResolvedValue(true);
-    vi.mocked(deleteCashFlow).mockResolvedValue(ok(null, "Terhapus"));
-    const { wrapper } = await renderWithProviders(HomePage);
-    await deleteButton(wrapper).trigger("click");
-    await flushPromises();
-    expect(deleteCashFlow).toHaveBeenCalledWith(1);
-    expect(showSuccessDialog).toHaveBeenCalledWith("Terhapus");
-    expect(getCashFlows).toHaveBeenCalledTimes(2);
+  it("memuat daftar label ke filter", async () => {
+    await render();
+    await waitFor(() => expect(screen.getByRole("option", { name: "alat-mandi" })).toBeInTheDocument());
+    expect(screen.getByRole("option", { name: "gaji" })).toBeInTheDocument();
   });
 
-  it("dibatalkan jika konfirmasi ditolak", async () => {
-    vi.mocked(showConfirmDialog).mockResolvedValue(false);
-    const { wrapper } = await renderWithProviders(HomePage);
-    await deleteButton(wrapper).trigger("click");
-    await flushPromises();
-    expect(deleteCashFlow).not.toHaveBeenCalled();
+  it("filter jenis, sumber, label, dan rentang tanggal memuat ulang dengan parameter yang sesuai", async () => {
+    await render();
+    await waitFor(() => expect(rows()).toHaveLength(3));
+    expect(screen.queryByRole("button", { name: "Hapus semua filter" })).not.toBeInTheDocument();
+
+    await fireEvent.update(screen.getByLabelText("Jenis"), "outflow");
+    await waitFor(() => expect(lastParams()).toEqual({ type: "outflow" }));
+    await fireEvent.update(screen.getByLabelText("Sumber dana"), "savings");
+    await waitFor(() => expect(lastParams()).toEqual({ type: "outflow", source: "savings" }));
+    await fireEvent.update(screen.getByLabelText("Label"), "alat-mandi");
+    await waitFor(() => expect(lastParams().label).toBe("alat-mandi"));
+    await fireEvent.update(screen.getByLabelText("Tanggal awal"), "2024-10-01");
+    await fireEvent.update(screen.getByLabelText("Tanggal akhir"), "2024-10-31");
+    await waitFor(() =>
+      expect(lastParams()).toEqual({
+        type: "outflow",
+        source: "savings",
+        label: "alat-mandi",
+        start_date: "2024-10-01 00:00:00",
+        end_date: "2024-10-31 23:59:59",
+      }),
+    );
+
+    await fireEvent.click(screen.getByRole("button", { name: "Hapus semua filter" }));
+    await waitFor(() => expect(lastParams()).toEqual({}));
+    expect(screen.getByLabelText("Jenis")).toHaveValue("");
+    expect(screen.queryByRole("button", { name: "Hapus semua filter" })).not.toBeInTheDocument();
   });
 
-  it("menampilkan error jika API gagal", async () => {
-    vi.mocked(showConfirmDialog).mockResolvedValue(true);
-    vi.mocked(deleteCashFlow).mockResolvedValue(fail("Tidak bisa dihapus"));
-    const { wrapper } = await renderWithProviders(HomePage);
-    await deleteButton(wrapper).trigger("click");
-    await flushPromises();
-    expect(showErrorDialog).toHaveBeenCalledWith("Tidak bisa dihapus");
-  });
-});
+  it("tren harian ditampilkan lebih dulu dan bisa beralih ke bulanan", async () => {
+    await render();
+    const chart = await screen.findByTestId("trend-chart");
+    expect(within(chart).getAllByRole("listitem")).toHaveLength(2);
+    expect(within(chart).getByText("05/10")).toBeInTheDocument();
+    expect(within(chart).getByText(/05-10-2024: pemasukan.*2\.500\.000.*pengeluaran.*500\.000/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Harian" })).toHaveAttribute("aria-pressed", "true");
 
-describe("HomePage - reset semua", () => {
-  const resetAllButton = (wrapper: any) =>
-    wrapper.findAll("button").find((b: any) => b.text().includes("Reset Semua"))!;
+    await fireEvent.click(screen.getByRole("button", { name: "Bulanan" }));
+    expect(screen.getByRole("button", { name: "Bulanan" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(screen.getByTestId("trend-chart")).getByText("10/2024")).toBeInTheDocument();
+    expect(within(screen.getByTestId("trend-chart")).getByText(/09-2024: pemasukan.*pengeluaran.*Rp\s?0/)).toBeInTheDocument();
 
-  it("berhasil setelah konfirmasi", async () => {
-    vi.mocked(showConfirmDialog).mockResolvedValue(true);
-    vi.mocked(deleteAllCashFlows).mockResolvedValue(ok(null, "Semua terhapus"));
-    const { wrapper } = await renderWithProviders(HomePage);
-    await resetAllButton(wrapper).trigger("click");
-    await flushPromises();
-    expect(deleteAllCashFlows).toHaveBeenCalledTimes(1);
-    expect(showSuccessDialog).toHaveBeenCalledWith("Semua terhapus");
-    expect(getCashFlows).toHaveBeenCalledTimes(2);
+    await fireEvent.click(screen.getByRole("button", { name: "Harian" }));
+    expect(screen.getByText("05/10")).toBeInTheDocument();
   });
 
-  it("dibatalkan jika konfirmasi ditolak", async () => {
-    vi.mocked(showConfirmDialog).mockResolvedValue(false);
-    const { wrapper } = await renderWithProviders(HomePage);
-    await resetAllButton(wrapper).trigger("click");
-    await flushPromises();
-    expect(deleteAllCashFlows).not.toHaveBeenCalled();
+  it("tren kosong menampilkan pesan", async () => {
+    api.getStatsDaily.mockResolvedValue(fail);
+    await render();
+    expect(await screen.findByText("Data tren belum tersedia.")).toBeInTheDocument();
   });
 
-  it("menampilkan error jika API gagal", async () => {
-    vi.mocked(showConfirmDialog).mockResolvedValue(true);
-    vi.mocked(deleteAllCashFlows).mockResolvedValue(fail("Gagal reset"));
-    const { wrapper } = await renderWithProviders(HomePage);
-    await resetAllButton(wrapper).trigger("click");
-    await flushPromises();
-    expect(showErrorDialog).toHaveBeenCalledWith("Gagal reset");
-  });
-});
+  it("Catat transaksi membuka AddModal, bisa ditutup, dan menyimpan memuat ulang semua data", async () => {
+    await render();
+    await waitFor(() => expect(rows()).toHaveLength(3));
+    await fireEvent.click(screen.getByRole("button", { name: /catat transaksi/i }));
+    const dialog = screen.getByRole("dialog", { name: "Catat transaksi" });
+    await fireEvent.click(within(dialog).getByLabelText("Tutup"));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
-describe("HomePage - modal", () => {
-  it("membuka modal tambah, menutupnya, lalu menyimpan transaksi baru", async () => {
-    vi.mocked(addCashFlow).mockResolvedValue(ok({ cash_flow_id: 9 }, "Ditambah"));
-    const { wrapper } = await renderWithProviders(HomePage);
-    expect(wrapper.find("[role='dialog']").exists()).toBe(false);
-
-    const openButton = wrapper.findAll("button").find((b) => b.text().includes("Tambah Transaksi"))!;
-    await openButton.trigger("click");
-    expect(wrapper.get("#add-modal-title").text()).toBe("Tambah Arus Kas");
-
-    await wrapper.get("button[aria-label='Tutup']").trigger("click");
-    expect(wrapper.find("[role='dialog']").exists()).toBe(false);
-
-    await openButton.trigger("click");
-    await wrapper.get("#add-label").setValue("bonus");
-    await wrapper.get("#add-nominal").setValue("500");
-    await wrapper.get("#add-description").setValue("Bonus");
-    await wrapper.get("[role='dialog'] form").trigger("submit");
-    await flushPromises();
-
-    expect(addCashFlow).toHaveBeenCalledTimes(1);
-    expect(wrapper.find("[role='dialog']").exists()).toBe(false);
-    expect(getCashFlows).toHaveBeenCalledTimes(2);
+    await fireEvent.click(screen.getByRole("button", { name: /catat transaksi/i }));
+    await fireEvent.update(screen.getByLabelText("Label kategori"), "makan");
+    await fireEvent.update(screen.getByLabelText("Nominal (Rp)"), "20000");
+    await fireEvent.update(screen.getByLabelText("Keterangan"), "Makan siang");
+    await fireEvent.click(screen.getByRole("button", { name: "Simpan transaksi" }));
+    await waitFor(() => expect(api.addCashFlow).toHaveBeenCalled());
+    await waitFor(() => expect(api.getCashFlows).toHaveBeenCalledTimes(2));
+    expect(api.getLabels).toHaveBeenCalledTimes(2);
+    expect(api.getStatsDaily).toHaveBeenCalledTimes(2);
   });
 
-  it("membuka modal ubah, menutupnya, lalu menyimpan perubahan", async () => {
-    vi.mocked(updateCashFlow).mockResolvedValue(ok(null, "Diubah"));
-    const { wrapper } = await renderWithProviders(HomePage);
+  it("Ubah membuka ChangeModal berisi data transaksi dan menyimpan memuat ulang daftar", async () => {
+    await render();
+    await waitFor(() => expect(rows()).toHaveLength(3));
+    await fireEvent.click(screen.getByRole("button", { name: "Ubah alat-mandi" }));
+    const dialog = screen.getByRole("dialog", { name: "Ubah transaksi" });
+    expect(within(dialog).getByLabelText("Label kategori")).toHaveValue("alat-mandi");
+    await fireEvent.click(within(dialog).getByLabelText("Tutup"));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
-    await wrapper.get("button[aria-label='Ubah gaji']").trigger("click");
-    expect(wrapper.get("#change-modal-title").text()).toBe("Ubah Arus Kas");
-    expect((wrapper.get("#change-label").element as HTMLInputElement).value).toBe("gaji");
+    await fireEvent.click(screen.getByRole("button", { name: "Ubah alat-mandi" }));
+    await fireEvent.click(screen.getByRole("button", { name: "Simpan perubahan" }));
+    await waitFor(() => expect(api.changeCashFlow).toHaveBeenCalledWith(3, expect.objectContaining({ label: "alat-mandi" })));
+    await waitFor(() => expect(api.getCashFlows).toHaveBeenCalledTimes(2));
+  });
 
-    await wrapper.get("button[aria-label='Tutup']").trigger("click");
-    expect(wrapper.find("[role='dialog']").exists()).toBe(false);
+  it("hapus transaksi: berhasil memuat ulang, gagal menampilkan error, batal tidak melakukan apa pun", async () => {
+    await render();
+    await waitFor(() => expect(rows()).toHaveLength(3));
+    const trash = screen.getByRole("button", { name: "Hapus gaji" });
 
-    await wrapper.get("button[aria-label='Ubah gaji']").trigger("click");
-    await wrapper.get("[role='dialog'] form").trigger("submit");
-    await flushPromises();
+    await fireEvent.click(trash);
+    await waitFor(() => expect(api.deleteCashFlow).toHaveBeenCalledWith(2));
+    await waitFor(() => expect(api.getCashFlows).toHaveBeenCalledTimes(2));
 
-    expect(updateCashFlow).toHaveBeenCalledWith(1, expect.objectContaining({ label: "gaji" }));
-    expect(wrapper.find("[role='dialog']").exists()).toBe(false);
-    expect(getCashFlows).toHaveBeenCalledTimes(2);
+    api.deleteCashFlow.mockResolvedValue(fail);
+    await fireEvent.click(trash);
+    await waitFor(() => expect(Swal.fire.mock.calls.at(-1)[0]).toMatchObject({ icon: "error", text: "Gagal total" }));
+
+    Swal.fire.mockResolvedValueOnce({ isConfirmed: false });
+    await fireEvent.click(trash);
+    await waitFor(() => expect(Swal.fire.mock.calls.at(-1)[0].icon).toBe("warning"));
+    expect(api.deleteCashFlow).toHaveBeenCalledTimes(2);
+  });
+
+  it("reset semua transaksi: berhasil, gagal, dan dibatalkan", async () => {
+    await render();
+    await waitFor(() => expect(rows()).toHaveLength(3));
+    const reset = screen.getByRole("button", { name: /reset semua transaksi/i });
+
+    await fireEvent.click(reset);
+    await waitFor(() => expect(api.deleteAllCashFlows).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(api.getCashFlows).toHaveBeenCalledTimes(2));
+
+    api.deleteAllCashFlows.mockResolvedValue({ status: "fail", message: "Unauthenticated." });
+    await fireEvent.click(reset);
+    await waitFor(() => expect(Swal.fire.mock.calls.at(-1)[0]).toMatchObject({ icon: "error", text: "Unauthenticated." }));
+
+    Swal.fire.mockResolvedValueOnce({ isConfirmed: false });
+    await fireEvent.click(reset);
+    await waitFor(() => expect(Swal.fire.mock.calls.at(-1)[0].icon).toBe("warning"));
+    expect(api.deleteAllCashFlows).toHaveBeenCalledTimes(2);
   });
 });

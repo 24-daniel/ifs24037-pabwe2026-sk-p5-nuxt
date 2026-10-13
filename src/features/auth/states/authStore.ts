@@ -1,49 +1,84 @@
 import { defineStore } from "pinia";
-import { getAccessToken, putAccessToken, removeAccessToken } from "../../../helpers/apiHelper";
-import { loginRequest, registerRequest, type AuthUser } from "../api/authApi";
+import * as authApi from "../api/authApi";
+import type { LoginPayload, RegisterPayload } from "../api/authApi";
+import {
+  getAccessToken,
+  isSuccess,
+  putAccessToken,
+  removeAccessToken,
+  type ApiResponse,
+} from "../../../helpers/apiHelper";
+
+export interface ValidationState {
+  message: string;
+  errors: Record<string, string[]>;
+}
 
 export interface AuthState {
   token: string | null;
-  user: AuthUser | null;
   isLoading: boolean;
-}
-
-export interface ActionResult {
-  success: boolean;
-  message: string;
+  isAuthLogin: boolean;
+  isAuthRegister: boolean;
+  isAuthLogout: boolean;
+  validation: ValidationState | null;
 }
 
 export const useAuthStore = defineStore("auth", {
   state: (): AuthState => ({
     token: getAccessToken(),
-    user: null,
     isLoading: false,
+    // Flag keberhasilan aksi terakhir
+    isAuthLogin: false,
+    isAuthRegister: false,
+    isAuthLogout: false,
+    // Status validasi dari server (null jika tidak ada error)
+    validation: null,
   }),
   getters: {
-    isAuthenticated: (state): boolean => !!state.token,
+    isAuthenticated: (state): boolean => Boolean(state.token),
   },
   actions: {
-    async login(email: string, password: string): Promise<ActionResult> {
+    startRequest() {
       this.isLoading = true;
-      const response = await loginRequest(email, password);
-      if (response.success) {
+      this.validation = null;
+    },
+    finishRequest(response: ApiResponse): boolean {
+      this.isLoading = false;
+      const ok = isSuccess(response);
+      this.validation = ok ? null : { message: response.message, errors: response.data ?? {} };
+      return ok;
+    },
+    async login(credentials: LoginPayload) {
+      this.startRequest();
+      this.isAuthLogin = false;
+      const response = await authApi.login(credentials);
+      if (this.finishRequest(response)) {
         this.token = response.data!.token;
-        this.user = response.data!.user;
-        putAccessToken(response.data!.token);
+        putAccessToken(this.token);
+        this.isAuthLogin = true;
       }
-      this.isLoading = false;
-      return { success: response.success, message: response.message };
+      return response;
     },
-    async register(name: string, email: string, password: string): Promise<ActionResult> {
-      this.isLoading = true;
-      const response = await registerRequest(name, email, password);
-      this.isLoading = false;
-      return { success: response.success, message: response.message };
+    async register(payload: RegisterPayload) {
+      this.startRequest();
+      this.isAuthRegister = false;
+      const response = await authApi.register(payload);
+      this.isAuthRegister = this.finishRequest(response);
+      return response;
     },
-    logout(): void {
+    /** Hapus sesi lokal (dipakai saat logout maupun token kedaluwarsa). */
+    clearSession() {
       removeAccessToken();
       this.token = null;
-      this.user = null;
+    },
+    async logout() {
+      this.startRequest();
+      this.isAuthLogout = false;
+      const response = await authApi.logout();
+      this.clearSession();
+      this.finishRequest(response);
+      this.isAuthLogout = true;
+      return response;
     },
   },
 });

@@ -1,62 +1,68 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { flushPromises } from "@vue/test-utils";
-import LoginPage from "./LoginPage.vue";
-import { loginRequest } from "../api/authApi";
-import { showErrorDialog } from "../../../helpers/toolsHelper";
-import { deferred, fail, ok, renderWithProviders, sampleUser } from "../../../test-utils";
+// @ts-nocheck
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { fireEvent, screen, waitFor } from '@testing-library/vue'
+import Swal from 'sweetalert2'
+import LoginPage from './LoginPage.vue'
+import * as authApi from '../api/authApi'
+import { deferred, renderWithProviders } from '../../../test-utils'
 
-vi.mock("../api/authApi");
-vi.mock("../../../helpers/toolsHelper", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../../../helpers/toolsHelper")>()),
-  showErrorDialog: vi.fn(),
-}));
+vi.mock('../api/authApi')
 
-beforeEach(() => {
-  vi.resetAllMocks();
-});
-
-async function fillAndSubmit(wrapper: any) {
-  await wrapper.get("#login-email-input").setValue("budi@delcom.org");
-  await wrapper.get("#login-password-input").setValue("rahasia");
-  await wrapper.get("form").trigger("submit");
-  await flushPromises();
+const fill = async (email, password) => {
+  await fireEvent.update(screen.getByLabelText('Email'), email)
+  await fireEvent.update(screen.getByLabelText('Kata sandi'), password)
 }
 
-describe("LoginPage", () => {
-  it("menampilkan form dengan selector yang dibutuhkan grader", async () => {
-    const { wrapper } = await renderWithProviders(LoginPage, { route: "/auth/login" });
-    expect(wrapper.get("h1").text()).toBe("Masuk");
-    expect(wrapper.find("#login-email-input").exists()).toBe(true);
-    expect(wrapper.find("#login-password-input").exists()).toBe(true);
-    expect(wrapper.get("#login-submit-button").text()).toBe("Masuk");
-    expect(wrapper.get("a").attributes("href")).toBe("/auth/register");
-  });
+describe('LoginPage', () => {
+  beforeEach(() => authApi.login.mockResolvedValue({ status: 'success', data: { token: 'TOK' } }))
 
-  it("login berhasil mengalihkan ke beranda", async () => {
-    vi.mocked(loginRequest).mockResolvedValue(ok({ token: "tok", user: sampleUser }));
-    const { wrapper, router } = await renderWithProviders(LoginPage, { route: "/auth/login" });
-    await fillAndSubmit(wrapper);
-    expect(loginRequest).toHaveBeenCalledWith("budi@delcom.org", "rahasia");
-    expect(router.currentRoute.value.path).toBe("/");
-    expect(showErrorDialog).not.toHaveBeenCalled();
-  });
+  it('menampilkan error validasi untuk form kosong', async () => {
+    await renderWithProviders(LoginPage, { route: '/auth/login' })
+    await fireEvent.click(screen.getByRole('button', { name: 'Masuk' }))
+    expect(screen.getByText('Email wajib diisi')).toBeInTheDocument()
+    expect(screen.getByText('Kata sandi wajib diisi')).toBeInTheDocument()
+    expect(authApi.login).not.toHaveBeenCalled()
+  })
 
-  it("login gagal menampilkan dialog error", async () => {
-    vi.mocked(loginRequest).mockResolvedValue(fail("Email atau sandi salah"));
-    const { wrapper, router } = await renderWithProviders(LoginPage, { route: "/auth/login" });
-    await fillAndSubmit(wrapper);
-    expect(showErrorDialog).toHaveBeenCalledWith("Email atau sandi salah");
-    expect(router.currentRoute.value.path).toBe("/auth/login");
-  });
+  it('menolak format email yang salah', async () => {
+    await renderWithProviders(LoginPage, { route: '/auth/login' })
+    await fill('bukan-email', 'rahasia')
+    await fireEvent.click(screen.getByRole('button', { name: 'Masuk' }))
+    expect(screen.getByText('Format email tidak valid')).toBeInTheDocument()
+    expect(authApi.login).not.toHaveBeenCalled()
+  })
 
-  it("tombol nonaktif selama proses login", async () => {
-    const pending = deferred<any>();
-    vi.mocked(loginRequest).mockReturnValue(pending.promise);
-    const { wrapper } = await renderWithProviders(LoginPage, { route: "/auth/login" });
-    await wrapper.get("form").trigger("submit");
-    expect(wrapper.get("#login-submit-button").text()).toBe("Memproses...");
-    expect(wrapper.get("#login-submit-button").attributes("disabled")).toBeDefined();
-    pending.resolve(fail("x"));
-    await flushPromises();
-  });
-});
+  it('login berhasil mengarahkan ke dashboard', async () => {
+    const { router } = await renderWithProviders(LoginPage, { route: '/auth/login' })
+    await fill(' a@b.co ', 'rahasia')
+    await fireEvent.click(screen.getByRole('button', { name: 'Masuk' }))
+    await waitFor(() => expect(router.currentRoute.value.path).toBe('/'))
+    expect(authApi.login).toHaveBeenCalledWith({ email: 'a@b.co', password: 'rahasia' })
+    expect(localStorage.length).toBe(1)
+  })
+
+  it('login gagal menampilkan dialog error', async () => {
+    authApi.login.mockResolvedValue({ status: 'fail', message: 'Kredensial akun tidak ditemukan' })
+    const { router } = await renderWithProviders(LoginPage, { route: '/auth/login' })
+    await fill('a@b.co', 'salah')
+    await fireEvent.click(screen.getByRole('button', { name: 'Masuk' }))
+    await waitFor(() => expect(Swal.fire).toHaveBeenCalled())
+    expect(Swal.fire.mock.calls[0][0]).toMatchObject({ icon: 'error', title: 'Login gagal', text: 'Kredensial akun tidak ditemukan' })
+    expect(router.currentRoute.value.path).toBe('/auth/login')
+  })
+
+  it('menonaktifkan tombol saat memproses', async () => {
+    const pending = deferred()
+    authApi.login.mockReturnValue(pending.promise)
+    await renderWithProviders(LoginPage, { route: '/auth/login' })
+    await fill('a@b.co', 'rahasia')
+    await fireEvent.click(screen.getByRole('button', { name: 'Masuk' }))
+    expect(await screen.findByRole('button', { name: 'Memproses…' })).toBeDisabled()
+    pending.resolve({ status: 'fail', message: 'x' })
+  })
+
+  it('memiliki tautan ke halaman registrasi', async () => {
+    await renderWithProviders(LoginPage, { route: '/auth/login' })
+    expect(screen.getByRole('link', { name: /daftar sekarang/i })).toHaveAttribute('href', '/auth/register')
+  })
+})

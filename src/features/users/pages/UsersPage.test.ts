@@ -1,40 +1,34 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import UsersPage from "./UsersPage.vue";
-import { getUsers } from "../api/userApi";
-import { fail, ok, renderWithProviders, sampleUser } from "../../../test-utils";
+// @ts-nocheck
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { screen, waitFor } from '@testing-library/vue'
+import UsersPage from './UsersPage.vue'
+import * as userApi from '../api/userApi'
+import { deferred, renderWithProviders } from '../../../test-utils'
 
-vi.mock("../api/userApi");
+vi.mock('../api/userApi')
 
-beforeEach(() => {
-  vi.resetAllMocks();
-});
+const users = [
+  { id: 1, name: 'Delcom Testing', email: 'testing@delcom.org', photo: 'img/profile/1.png', created_at: '2024-10-05T02:53:38.000000Z' },
+  { id: 2, name: 'Abdullah Ubaid', email: 'ifs18005@delcom.org', photo: '', created_at: '2024-10-05T03:18:14.000000Z' },
+]
 
-describe("UsersPage", () => {
-  it("menampilkan daftar pengguna dengan foto atau inisial", async () => {
-    vi.mocked(getUsers).mockResolvedValue(
-      ok({
-        users: [sampleUser, { ...sampleUser, id: 2, name: "Ani", email: "ani@delcom.org", photo: "https://x.test/a.png" }],
-      })
-    );
-    const { wrapper } = await renderWithProviders(UsersPage);
-    expect(getUsers).toHaveBeenCalledTimes(1);
-    const items = wrapper.findAll("li");
-    expect(items).toHaveLength(2);
-    expect(items[0].text()).toContain("Budi Santoso");
-    expect(items[0].text()).toContain("B");
-    expect(items[0].find("img").exists()).toBe(false);
-    expect(items[1].get("img").attributes("alt")).toBe("Foto Ani");
-  });
+describe('UsersPage', () => {
+  beforeEach(() => userApi.getUsers.mockResolvedValue({ status: 'success', data: { users } }))
 
-  it("menampilkan status memuat", async () => {
-    vi.mocked(getUsers).mockReturnValue(new Promise(() => {}));
-    const { wrapper } = await renderWithProviders(UsersPage);
-    expect(wrapper.text()).toContain("Memuat data...");
-  });
+  it('menampilkan daftar pengguna dengan foto atau inisial', async () => {
+    await renderWithProviders(UsersPage)
+    await waitFor(() => expect(screen.getAllByTestId('user-card')).toHaveLength(2))
+    expect(screen.getByAltText('Delcom Testing')).toHaveAttribute('src', 'https://open-api.delcom.org/img/profile/1.png')
+    expect(screen.getByText('AU')).toBeInTheDocument()
+    expect(screen.getByText('ifs18005@delcom.org')).toBeInTheDocument()
+  })
 
-  it("menampilkan keadaan kosong", async () => {
-    vi.mocked(getUsers).mockResolvedValue(fail());
-    const { wrapper } = await renderWithProviders(UsersPage);
-    expect(wrapper.text()).toContain("Belum ada pengguna.");
-  });
-});
+  it('menampilkan status memuat', async () => {
+    const pending = deferred()
+    userApi.getUsers.mockReturnValue(pending.promise)
+    await renderWithProviders(UsersPage)
+    expect(screen.getByText('Memuat pengguna…')).toBeInTheDocument()
+    pending.resolve({ status: 'success', data: { users: [] } })
+    expect(await screen.findByText('Belum ada pengguna terdaftar.')).toBeInTheDocument()
+  })
+})

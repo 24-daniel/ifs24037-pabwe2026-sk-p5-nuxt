@@ -1,268 +1,253 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
-import { RouterLink } from "vue-router";
-import {
-  Eye,
-  Landmark,
-  Pencil,
-  PiggyBank,
-  Plus,
-  RotateCcw,
-  Trash2,
-  TrendingDown,
-  TrendingUp,
-  Wallet,
-} from "lucide-vue-next";
-import { useCashFlowsStore, type CashFlow } from "../states/cashFlowsStore";
+import { computed, onMounted, reactive, ref, watch } from "vue";
+import { ArrowDownRight, ArrowUpRight, Eye, Pencil, Plus, Trash2 } from "lucide-vue-next";
 import AddModal from "../modals/AddModal.vue";
 import ChangeModal from "../modals/ChangeModal.vue";
 import {
-  formatDateTime,
+  useCashFlowsStore,
+  type CashFlow,
+  type CashFlowQueryParams,
+  type CashFlowTrend,
+} from "../states/cashFlowsStore";
+import { SOURCES, SOURCE_LABEL, TYPES, TYPE_LABEL } from "../constants";
+import { isSuccess } from "../../../helpers/apiHelper";
+import {
+  cn,
+  extractErrorMessage,
+  formatDate,
   formatRupiah,
   showConfirmDialog,
   showErrorDialog,
   showSuccessDialog,
-  toApiDateTime,
+  toApiDate,
 } from "../../../helpers/toolsHelper";
 
+type TrendMode = "daily" | "monthly";
+
 const store = useCashFlowsStore();
+
+const filters = reactive({ type: "", source: "", label: "", startDate: "", endDate: "" });
 const showAdd = ref(false);
-const editing = ref<CashFlow | null>(null);
-const filters = reactive({ type: "", source: "", label: "", start_date: "", end_date: "" });
+const editTarget = ref<CashFlow | null>(null);
+const trendMode = ref<TrendMode>("daily");
 
-const sourceLabels: Record<string, string> = {
-  cash: "Tunai",
-  savings: "Tabungan",
-  loans: "Pinjaman",
-};
+const params = computed<CashFlowQueryParams>(() => {
+  const result: CashFlowQueryParams = {};
+  if (filters.type) result.type = filters.type as CashFlowQueryParams["type"];
+  if (filters.source) result.source = filters.source as CashFlowQueryParams["source"];
+  if (filters.label) result.label = filters.label;
+  if (filters.startDate) result.start_date = toApiDate(filters.startDate, "start");
+  if (filters.endDate) result.end_date = toApiDate(filters.endDate, "end");
+  return result;
+});
+const hasFilter = computed(() => Object.keys(params.value).length > 0);
 
-const cards = computed(() => [
-  { key: "net", title: "Total Saldo Kas Bersih", value: store.stats.cashflow, icon: Wallet, tone: "bg-indigo-50 text-indigo-800" },
-  { key: "inflow", title: "Total Pemasukan", value: store.stats.total_inflow, icon: TrendingUp, tone: "bg-emerald-50 text-emerald-800" },
-  { key: "outflow", title: "Total Pengeluaran", value: store.stats.total_outflow, icon: TrendingDown, tone: "bg-red-50 text-red-800" },
-  { key: "cash", title: "Saldo Kas Tunai", value: store.stats.cash, icon: Wallet, tone: "bg-sky-50 text-sky-800" },
-  { key: "savings", title: "Saldo Rekening Tabungan", value: store.stats.savings, icon: PiggyBank, tone: "bg-amber-50 text-amber-900" },
-  { key: "loans", title: "Saldo Pinjaman", value: store.stats.loans, icon: Landmark, tone: "bg-violet-50 text-violet-800" },
-]);
+const metrics = computed(() => {
+  const { inflow, outflow, cash, savings, loans } = store.summary;
+  return [
+    { key: "inflow", label: "Total pemasukan", value: inflow },
+    { key: "outflow", label: "Total pengeluaran", value: outflow },
+    { key: "cash", label: "Saldo tunai", value: cash },
+    { key: "savings", label: "Saldo tabungan", value: savings },
+    { key: "loans", label: "Saldo pinjaman", value: loans },
+  ];
+});
 
-function loadCashFlows() {
-  return store.fetchCashFlows({
-    type: filters.type,
-    source: filters.source,
-    label: filters.label,
-    start_date: toApiDateTime(filters.start_date, false),
-    end_date: toApiDateTime(filters.end_date, true),
+const trend = computed<CashFlowTrend | null>(() =>
+  trendMode.value === "daily" ? store.statsDaily : store.statsMonthly,
+);
+const trendColumns = computed(() => {
+  const data = trend.value;
+  if (!data) return [];
+  const peak = Math.max(1, ...Object.values(data.stats_inflow), ...Object.values(data.stats_outflow));
+  return Object.keys(data.stats_inflow).map((key) => {
+    const inflow = data.stats_inflow[key] as number;
+    const outflow = data.stats_outflow[key] ?? 0;
+    return {
+      key,
+      short: trendMode.value === "daily" ? key.slice(0, 5).replace("-", "/") : key.replace("-", "/"),
+      inflow,
+      outflow,
+      inflowHeight: Math.round((inflow / peak) * 100),
+      outflowHeight: Math.round((outflow / peak) * 100),
+    };
   });
-}
+});
 
-async function refresh() {
-  await Promise.all([loadCashFlows(), store.fetchLabels()]);
-}
+const loadList = () => store.fetchCashFlows(params.value);
+const loadTrends = () => Promise.all([store.fetchStatsDaily(), store.fetchStatsMonthly()]);
+const refresh = () => Promise.all([loadList(), store.fetchLabels(), loadTrends()]);
 
-onMounted(refresh);
+onMounted(() => {
+  store.fetchLabels();
+  loadTrends();
+});
+watch(params, loadList, { immediate: true });
 
-function resetFilters() {
-  Object.assign(filters, { type: "", source: "", label: "", start_date: "", end_date: "" });
-  return loadCashFlows();
-}
+const resetFilters = () => Object.assign(filters, { type: "", source: "", label: "", startDate: "", endDate: "" });
 
-async function onSaved() {
-  showAdd.value = false;
-  editing.value = null;
-  await refresh();
-}
-
-async function onDelete(cashFlow: CashFlow) {
-  const confirmed = await showConfirmDialog(`Hapus catatan "${cashFlow.label}"?`, "Ya, hapus");
-  if (!confirmed) {
-    return;
-  }
-  const response = await store.removeCashFlow(cashFlow.id);
-  if (response.success) {
+async function confirmAndRun(message: string, action: () => Promise<{ status: string; message: string }>) {
+  if (!(await showConfirmDialog(message))) return;
+  const response = await action();
+  if (isSuccess(response as never)) {
     await showSuccessDialog(response.message);
-    await refresh();
+    refresh();
   } else {
-    await showErrorDialog(response.message);
+    showErrorDialog(extractErrorMessage(response as never));
   }
 }
 
-async function onResetAll() {
-  const confirmed = await showConfirmDialog(
-    "Seluruh catatan arus kas akan dihapus permanen. Lanjutkan?",
-    "Ya, reset semua"
+const removeCashFlow = (item: CashFlow) =>
+  confirmAndRun(`Transaksi "${item.label}" akan dihapus permanen.`, () => store.deleteCashFlow(item.id));
+
+const resetAll = () =>
+  confirmAndRun("Seluruh catatan arus kasmu akan dihapus permanen dan tidak bisa dikembalikan.", () =>
+    store.deleteAllCashFlows(),
   );
-  if (!confirmed) {
-    return;
-  }
-  const response = await store.removeAllCashFlows();
-  if (response.success) {
-    await showSuccessDialog(response.message);
-    await refresh();
-  } else {
-    await showErrorDialog(response.message);
-  }
-}
 </script>
 
 <template>
-  <section aria-labelledby="home-title" class="space-y-6">
-    <div class="flex flex-wrap items-center justify-between gap-3">
+  <div>
+    <div class="flex flex-wrap items-end justify-between gap-4">
       <div>
-        <h1 id="home-title" class="text-2xl font-bold text-slate-900">Ringkasan Arus Kas</h1>
-        <p class="text-slate-700">Pantau pemasukan, pengeluaran, dan saldo kamu.</p>
+        <h1 class="text-3xl font-extrabold tracking-tight">Ringkasan Arus Kas</h1>
+        <p class="mt-1 text-sm text-slate-600">Saldo bersih dan semua transaksimu dalam satu tempat.</p>
       </div>
       <div class="flex flex-wrap gap-2">
-        <button
-          type="button"
-          class="inline-flex items-center gap-2 rounded-lg bg-indigo-700 px-4 py-2 font-semibold text-white hover:bg-indigo-800"
-          @click="showAdd = true"
-        >
-          <Plus :size="18" aria-hidden="true" />
-          Tambah Transaksi
-        </button>
-        <button
-          type="button"
-          class="inline-flex items-center gap-2 rounded-lg border border-red-700 px-4 py-2 font-semibold text-red-800 hover:bg-red-50"
-          @click="onResetAll"
-        >
-          <Trash2 :size="18" aria-hidden="true" />
-          Reset Semua
-        </button>
+        <button type="button" class="btn btn-danger" @click="resetAll"><Trash2 :size="16" aria-hidden="true" /> Reset semua transaksi</button>
+        <button type="button" class="btn btn-primary" @click="showAdd = true"><Plus :size="16" aria-hidden="true" /> Catat transaksi</button>
       </div>
     </div>
 
-    <ul class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-label="Ringkasan saldo">
-      <li v-for="card in cards" :key="card.key" class="rounded-2xl border border-slate-200 bg-white p-5">
-        <div class="flex items-center gap-3">
-          <span class="flex h-10 w-10 items-center justify-center rounded-lg" :class="card.tone">
-            <component :is="card.icon" :size="20" aria-hidden="true" />
-          </span>
-          <p class="text-sm font-semibold text-slate-700">{{ card.title }}</p>
+    <section class="mt-6" aria-labelledby="summary-heading">
+      <h2 id="summary-heading" class="sr-only">Ringkasan saldo</h2>
+      <div class="grid gap-4 lg:grid-cols-[1.2fr_2fr]">
+        <div class="rounded-xl bg-plum-900 p-6 text-white" data-testid="metric-balance">
+          <p class="text-sm font-semibold text-plum-100">Total saldo kas bersih</p>
+          <p class="mt-3 text-4xl font-extrabold tracking-tight text-saffron-400">{{ formatRupiah(store.summary.balance) }}</p>
+          <p class="mt-3 text-sm text-plum-100">Pemasukan dikurangi pengeluaran dari seluruh sumber dana.</p>
         </div>
-        <p class="mt-3 text-2xl font-extrabold text-slate-900">{{ formatRupiah(card.value) }}</p>
-      </li>
-    </ul>
+        <dl class="grid grid-cols-2 gap-4 sm:grid-cols-3">
+          <div v-for="metric in metrics" :key="metric.key" class="panel p-4" :data-testid="`metric-${metric.key}`">
+            <dt class="text-xs font-semibold text-slate-600">{{ metric.label }}</dt>
+            <dd class="mt-2 text-lg font-extrabold" :class="metric.key === 'outflow' ? 'text-loss-700' : metric.key === 'inflow' ? 'text-gain-700' : 'text-slate-900'">
+              {{ formatRupiah(metric.value) }}
+            </dd>
+          </div>
+        </dl>
+      </div>
+    </section>
 
-    <form
-      class="grid gap-4 rounded-2xl border border-slate-200 bg-white p-5 sm:grid-cols-2 lg:grid-cols-5"
-      aria-label="Filter transaksi"
-      @submit.prevent="loadCashFlows"
-    >
-      <div>
-        <label for="filter-type" class="mb-1 block text-sm font-semibold text-slate-800">Jenis</label>
-        <select id="filter-type" v-model="filters.type" class="w-full rounded-lg border border-slate-400 px-3 py-2">
-          <option value="">Semua</option>
-          <option value="inflow">Pemasukan</option>
-          <option value="outflow">Pengeluaran</option>
-        </select>
+    <section class="panel mt-6 p-5" aria-labelledby="trend-heading">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <h2 id="trend-heading" class="text-lg font-extrabold">Tren pemasukan dan pengeluaran</h2>
+        <div class="flex gap-2" role="group" aria-label="Rentang tren">
+          <button type="button" class="btn !py-1.5" :class="trendMode === 'daily' ? 'btn-primary' : 'btn-ghost'" :aria-pressed="trendMode === 'daily'" @click="trendMode = 'daily'">Harian</button>
+          <button type="button" class="btn !py-1.5" :class="trendMode === 'monthly' ? 'btn-primary' : 'btn-ghost'" :aria-pressed="trendMode === 'monthly'" @click="trendMode = 'monthly'">Bulanan</button>
+        </div>
       </div>
-      <div>
-        <label for="filter-source" class="mb-1 block text-sm font-semibold text-slate-800">Sumber dana</label>
-        <select id="filter-source" v-model="filters.source" class="w-full rounded-lg border border-slate-400 px-3 py-2">
-          <option value="">Semua</option>
-          <option value="cash">Tunai</option>
-          <option value="savings">Tabungan</option>
-          <option value="loans">Pinjaman</option>
-        </select>
-      </div>
-      <div>
-        <label for="filter-label" class="mb-1 block text-sm font-semibold text-slate-800">Label</label>
-        <select id="filter-label" v-model="filters.label" class="w-full rounded-lg border border-slate-400 px-3 py-2">
-          <option value="">Semua</option>
-          <option v-for="item in store.labels" :key="item" :value="item">{{ item }}</option>
-        </select>
-      </div>
-      <div>
-        <label for="filter-start" class="mb-1 block text-sm font-semibold text-slate-800">Tanggal awal</label>
-        <input id="filter-start" v-model="filters.start_date" type="date" class="w-full rounded-lg border border-slate-400 px-3 py-2" />
-      </div>
-      <div>
-        <label for="filter-end" class="mb-1 block text-sm font-semibold text-slate-800">Tanggal akhir</label>
-        <input id="filter-end" v-model="filters.end_date" type="date" class="w-full rounded-lg border border-slate-400 px-3 py-2" />
-      </div>
-      <div class="flex gap-2 sm:col-span-2 lg:col-span-5">
-        <button type="submit" class="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white hover:bg-slate-700">
-          Terapkan Filter
-        </button>
-        <button
-          type="button"
-          class="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 font-semibold text-slate-800 hover:bg-slate-100"
-          @click="resetFilters"
-        >
-          <RotateCcw :size="16" aria-hidden="true" />
-          Reset Filter
-        </button>
-      </div>
-    </form>
+      <p v-if="trendColumns.length === 0" class="mt-4 text-sm text-slate-600">Data tren belum tersedia.</p>
+      <template v-else>
+        <ul class="mt-5 flex h-40 items-end gap-2 overflow-x-auto" data-testid="trend-chart">
+          <li v-for="column in trendColumns" :key="column.key" class="flex h-full min-w-10 flex-1 flex-col justify-end">
+            <span class="sr-only">{{ column.key }}: pemasukan {{ formatRupiah(column.inflow) }}, pengeluaran {{ formatRupiah(column.outflow) }}</span>
+            <div class="flex flex-1 items-end justify-center gap-1" aria-hidden="true">
+              <div class="w-3 rounded-t bg-gain-700" :style="{ height: `${column.inflowHeight}%` }" />
+              <div class="w-3 rounded-t bg-loss-700" :style="{ height: `${column.outflowHeight}%` }" />
+            </div>
+            <span class="mt-2 text-center text-xs text-slate-600" aria-hidden="true">{{ column.short }}</span>
+          </li>
+        </ul>
+        <p class="mt-3 flex gap-4 text-xs text-slate-600">
+          <span class="inline-flex items-center gap-1.5"><span class="size-2.5 rounded-sm bg-gain-700" aria-hidden="true" /> Pemasukan</span>
+          <span class="inline-flex items-center gap-1.5"><span class="size-2.5 rounded-sm bg-loss-700" aria-hidden="true" /> Pengeluaran</span>
+        </p>
+      </template>
+    </section>
 
-    <div class="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
-      <table class="w-full min-w-[720px] text-left text-sm">
-        <caption class="sr-only">Daftar transaksi arus kas</caption>
-        <thead class="bg-slate-100 text-slate-800">
-          <tr>
-            <th scope="col" class="px-4 py-3 font-semibold">Tanggal</th>
-            <th scope="col" class="px-4 py-3 font-semibold">Label</th>
-            <th scope="col" class="px-4 py-3 font-semibold">Jenis</th>
-            <th scope="col" class="px-4 py-3 font-semibold">Sumber</th>
-            <th scope="col" class="px-4 py-3 text-right font-semibold">Nominal</th>
-            <th scope="col" class="px-4 py-3 text-right font-semibold">Aksi</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-slate-200">
-          <tr v-if="store.isLoading">
-            <td colspan="6" class="px-4 py-8 text-center text-slate-700">Memuat data...</td>
-          </tr>
-          <tr v-else-if="store.cashFlows.length === 0">
-            <td colspan="6" class="px-4 py-8 text-center text-slate-700">Belum ada catatan arus kas.</td>
-          </tr>
-          <template v-else>
-            <tr v-for="item in store.cashFlows" :key="item.id">
-              <td class="px-4 py-3 text-slate-800">{{ formatDateTime(item.created_at) }}</td>
-              <td class="px-4 py-3 font-semibold text-slate-900">{{ item.label }}</td>
+    <section class="mt-6" aria-labelledby="transactions-heading">
+      <h2 id="transactions-heading" class="text-lg font-extrabold">Transaksi</h2>
+
+      <div class="panel mt-3 grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-5" role="group" aria-label="Filter transaksi">
+        <div>
+          <label class="label" for="filter-type">Jenis</label>
+          <select id="filter-type" v-model="filters.type" class="field">
+            <option value="">Semua jenis</option>
+            <option v-for="item in TYPES" :key="item" :value="item">{{ TYPE_LABEL[item] }}</option>
+          </select>
+        </div>
+        <div>
+          <label class="label" for="filter-source">Sumber dana</label>
+          <select id="filter-source" v-model="filters.source" class="field">
+            <option value="">Semua sumber</option>
+            <option v-for="item in SOURCES" :key="item" :value="item">{{ SOURCE_LABEL[item] }}</option>
+          </select>
+        </div>
+        <div>
+          <label class="label" for="filter-label">Label</label>
+          <select id="filter-label" v-model="filters.label" class="field">
+            <option value="">Semua label</option>
+            <option v-for="item in store.labels" :key="item" :value="item">{{ item }}</option>
+          </select>
+        </div>
+        <div>
+          <label class="label" for="filter-start">Tanggal awal</label>
+          <input id="filter-start" v-model="filters.startDate" type="date" class="field" />
+        </div>
+        <div>
+          <label class="label" for="filter-end">Tanggal akhir</label>
+          <input id="filter-end" v-model="filters.endDate" type="date" class="field" />
+        </div>
+        <div v-if="hasFilter" class="sm:col-span-2 lg:col-span-5">
+          <button type="button" class="btn btn-ghost" @click="resetFilters">Hapus semua filter</button>
+        </div>
+      </div>
+
+      <p v-if="store.isCashFlow" class="mt-8 text-center text-sm text-slate-600">Memuat transaksi…</p>
+      <p v-else-if="store.cashFlows.length === 0" class="panel mt-4 p-10 text-center text-sm text-slate-600">
+        Belum ada transaksi yang cocok. Catat transaksi pertamamu atau ubah filter.
+      </p>
+      <div v-else class="panel mt-4 overflow-x-auto">
+        <table class="w-full min-w-[40rem] text-left text-sm">
+          <caption class="sr-only">Daftar transaksi arus kas</caption>
+          <thead class="border-b border-slate-200 text-xs text-slate-600">
+            <tr>
+              <th scope="col" class="px-4 py-3 font-semibold">Tanggal</th>
+              <th scope="col" class="px-4 py-3 font-semibold">Label</th>
+              <th scope="col" class="px-4 py-3 font-semibold">Sumber</th>
+              <th scope="col" class="px-4 py-3 font-semibold">Jenis</th>
+              <th scope="col" class="px-4 py-3 text-right font-semibold">Nominal</th>
+              <th scope="col" class="px-4 py-3 text-right font-semibold">Aksi</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <tr v-for="item in store.cashFlows" :key="item.id" data-testid="cashflow-row">
+              <td class="px-4 py-3 text-slate-600">{{ formatDate(item.created_at) }}</td>
+              <td class="px-4 py-3 font-semibold">{{ item.label }}</td>
+              <td class="px-4 py-3">{{ SOURCE_LABEL[item.source] }}</td>
               <td class="px-4 py-3">
-                <span
-                  class="rounded-full px-3 py-1 text-xs font-semibold"
-                  :class="item.type === 'inflow' ? 'bg-emerald-50 text-emerald-800' : 'bg-red-50 text-red-800'"
-                >
-                  {{ item.type === "inflow" ? "Pemasukan" : "Pengeluaran" }}
+                <span :class="cn('inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold', item.type === 'inflow' ? 'bg-gain-50 text-gain-700' : 'bg-loss-50 text-loss-700')">
+                  <component :is="item.type === 'inflow' ? ArrowDownRight : ArrowUpRight" :size="12" aria-hidden="true" />
+                  {{ TYPE_LABEL[item.type] }}
                 </span>
               </td>
-              <td class="px-4 py-3 text-slate-800">{{ sourceLabels[item.source] }}</td>
-              <td class="px-4 py-3 text-right font-semibold text-slate-900">{{ formatRupiah(item.nominal) }}</td>
+              <td class="px-4 py-3 text-right font-bold" :class="item.type === 'inflow' ? 'text-gain-700' : 'text-loss-700'">
+                {{ item.type === "inflow" ? "+" : "-" }}{{ formatRupiah(item.nominal) }}
+              </td>
               <td class="px-4 py-3">
-                <div class="flex justify-end gap-1">
-                  <RouterLink
-                    :to="`/cash-flows/${item.id}`"
-                    :aria-label="`Lihat detail ${item.label}`"
-                    class="rounded-lg p-2 text-slate-800 hover:bg-slate-100"
-                  >
-                    <Eye :size="18" aria-hidden="true" />
-                  </RouterLink>
-                  <button
-                    type="button"
-                    :aria-label="`Ubah ${item.label}`"
-                    class="rounded-lg p-2 text-slate-800 hover:bg-slate-100"
-                    @click="editing = item"
-                  >
-                    <Pencil :size="18" aria-hidden="true" />
-                  </button>
-                  <button
-                    type="button"
-                    :aria-label="`Hapus ${item.label}`"
-                    class="rounded-lg p-2 text-red-800 hover:bg-red-50"
-                    @click="onDelete(item)"
-                  >
-                    <Trash2 :size="18" aria-hidden="true" />
-                  </button>
+                <div class="flex justify-end gap-1.5">
+                  <RouterLink :to="`/cash-flows/${item.id}`" class="btn btn-ghost !p-2" :aria-label="`Lihat detail ${item.label}`"><Eye :size="16" aria-hidden="true" /></RouterLink>
+                  <button type="button" class="btn btn-ghost !p-2" :aria-label="`Ubah ${item.label}`" @click="editTarget = item"><Pencil :size="16" aria-hidden="true" /></button>
+                  <button type="button" class="btn btn-danger !p-2" :aria-label="`Hapus ${item.label}`" @click="removeCashFlow(item)"><Trash2 :size="16" aria-hidden="true" /></button>
                 </div>
               </td>
             </tr>
-          </template>
-        </tbody>
-      </table>
-    </div>
+          </tbody>
+        </table>
+      </div>
+    </section>
 
-    <AddModal :open="showAdd" :labels="store.labels" @close="showAdd = false" @saved="onSaved" />
-    <ChangeModal :open="editing !== null" :cash-flow="editing" :labels="store.labels" @close="editing = null" @saved="onSaved" />
-  </section>
+    <AddModal :open="showAdd" @close="showAdd = false" @saved="refresh" />
+    <ChangeModal v-if="editTarget" :open="true" :cash-flow="editTarget" @close="editTarget = null" @saved="refresh" />
+  </div>
 </template>

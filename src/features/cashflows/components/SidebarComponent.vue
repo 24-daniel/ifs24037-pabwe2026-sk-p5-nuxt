@@ -1,59 +1,54 @@
 <script setup lang="ts">
-import { RouterLink } from "vue-router";
-import { LayoutDashboard, UserRound, Users, Wallet } from "lucide-vue-next";
+import { useRoute } from "vue-router";
+import { LayoutDashboard, UserRound, Users, Wallet, X } from "lucide-vue-next";
 
-defineProps<{ open: boolean }>();
+defineProps<{ open?: boolean }>();
 const emit = defineEmits<{ (e: "close"): void }>();
 
-function onNavigate(event: MouseEvent, navigate: (e: MouseEvent) => void) {
-  navigate(event);
-  emit("close");
-}
+const route = useRoute();
 
-const menus = [
-  { to: "/", label: "Ringkasan Arus Kas", icon: LayoutDashboard },
-  { to: "/users", label: "Direktori Pengguna", icon: Users },
-  { to: "/profile", label: "Profil Saya", icon: UserRound },
+const items = [
+  { label: "Ringkasan Arus Kas", to: "/", paths: ["/", "/cash-flows"], icon: LayoutDashboard },
+  { label: "Direktori Pengguna", to: "/users", paths: ["/users"], icon: Users },
+  { label: "Profil Saya", to: "/profile", paths: ["/profile"], icon: UserRound },
 ];
+
+const isActive = (paths: string[]) =>
+  paths.some((path) => route.path === path || route.path.startsWith(`${path}/`));
 </script>
 
 <template>
   <div>
-    <button
-      v-if="open"
-      type="button"
-      aria-label="Tutup menu navigasi"
-      class="fixed inset-0 z-30 bg-slate-900/50 lg:hidden"
-      @click="emit('close')"
-    ></button>
-
+    <div v-if="open" class="fixed inset-0 z-30 bg-plum-950/50 lg:hidden" data-testid="sidebar-backdrop" @click="emit('close')" />
     <aside
-      class="fixed inset-y-0 left-0 z-40 w-64 transform border-r border-slate-200 bg-white p-4 transition-transform lg:static lg:z-auto lg:min-h-screen lg:translate-x-0"
+      class="fixed inset-y-0 left-0 z-40 flex w-64 flex-col bg-plum-950 p-5 text-white transition-transform lg:translate-x-0"
       :class="open ? 'translate-x-0' : '-translate-x-full'"
+      aria-label="Navigasi utama"
     >
-      <div class="mb-6 flex items-center gap-2 px-2">
-        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-700 text-white">
-          <Wallet :size="20" aria-hidden="true" />
-        </span>
-        <p class="font-extrabold text-slate-900">Delcom Cash Flow</p>
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <span class="grid size-10 place-items-center rounded-xl bg-saffron-400 text-plum-950">
+            <Wallet :size="20" aria-hidden="true" />
+          </span>
+          <span class="font-extrabold tracking-tight">Delcom Cash Flow</span>
+        </div>
+        <button type="button" class="rounded-lg p-1.5 text-plum-100 hover:bg-white/10 lg:hidden" aria-label="Tutup menu" @click="emit('close')">
+          <X :size="18" aria-hidden="true" />
+        </button>
       </div>
-      <nav aria-label="Navigasi utama">
-        <ul class="space-y-1">
-          <li v-for="menu in menus" :key="menu.to">
-            <RouterLink v-slot="{ href, navigate, isExactActive }" :to="menu.to" custom>
-              <a
-                :href="href"
-                :aria-current="isExactActive ? 'page' : undefined"
-                class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold focus:outline-2 focus:outline-indigo-700"
-                :class="isExactActive ? 'bg-indigo-700 text-white' : 'text-slate-800 hover:bg-slate-100'"
-                @click="onNavigate($event, navigate)"
-              >
-                <component :is="menu.icon" :size="18" aria-hidden="true" />
-                {{ menu.label }}
-              </a>
-            </RouterLink>
-          </li>
-        </ul>
+
+      <nav class="mt-10 space-y-1" aria-label="Menu">
+        <RouterLink
+          v-for="item in items"
+          :key="item.label"
+          :to="item.to"
+          class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition"
+          :class="isActive(item.paths) ? 'bg-white text-plum-950' : 'text-plum-100 hover:bg-white/10'"
+          @click="emit('close')"
+        >
+          <component :is="item.icon" :size="18" aria-hidden="true" />
+          {{ item.label }}
+        </RouterLink>
       </nav>
     </aside>
   </div>

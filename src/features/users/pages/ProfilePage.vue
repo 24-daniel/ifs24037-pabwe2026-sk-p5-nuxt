@@ -1,173 +1,149 @@
 <script setup lang="ts">
-import { onMounted } from "vue";
-import { useUsersStore } from "../states/usersStore";
+import { ref, watch } from "vue";
+import { Camera } from "lucide-vue-next";
 import { useInput } from "../../../hooks/useInput";
-import { showErrorDialog, showSuccessDialog } from "../../../helpers/toolsHelper";
+import { useUsersStore } from "../states/usersStore";
+import { isSuccess, type ApiResponse } from "../../../helpers/apiHelper";
+import {
+  extractErrorMessage,
+  getInitials,
+  isValidEmail,
+  resolveImageUrl,
+  showErrorDialog,
+  showSuccessDialog,
+} from "../../../helpers/toolsHelper";
+
+const MAX_SIZE = 2 * 1024 * 1024;
 
 const store = useUsersStore();
 const [name, onNameChange] = useInput("");
 const [email, onEmailChange] = useInput("");
-const [password, onPasswordChange, resetPassword] = useInput("");
-const [newPassword, onNewPasswordChange, resetNewPassword] = useInput("");
-const [confirmation, onConfirmationChange, resetConfirmation] = useInput("");
+const [password, , resetPassword] = useInput("");
+const [newPassword, , resetNewPassword] = useInput("");
+const [confirmation, , resetConfirmation] = useInput("");
+const profileErrors = ref<Record<string, string>>({});
+const passwordErrors = ref<Record<string, string>>({});
 
-async function loadProfile() {
-  await store.fetchProfile();
-  if (store.profile) {
-    name.value = store.profile.name;
-    email.value = store.profile.email;
+watch(
+  () => store.profile,
+  (profile) => {
+    if (profile) {
+      onNameChange(profile.name);
+      onEmailChange(profile.email);
+    }
+  },
+  { immediate: true },
+);
+
+async function report(response: ApiResponse, title: string): Promise<boolean> {
+  if (isSuccess(response)) {
+    await showSuccessDialog(response.message, title);
+    return true;
   }
+  showErrorDialog(extractErrorMessage(response));
+  return false;
 }
 
-onMounted(loadProfile);
+async function onProfileSubmit() {
+  const errors: Record<string, string> = {};
+  if (!name.value.trim()) errors.name = "Nama wajib diisi";
+  if (!isValidEmail(email.value)) errors.email = "Format email tidak valid";
+  profileErrors.value = errors;
+  if (Object.keys(errors).length > 0) return;
 
-async function onUpdateProfile() {
-  const response = await store.updateProfile(name.value, email.value);
-  if (response.success) {
-    await showSuccessDialog(response.message);
-  } else {
-    await showErrorDialog(response.message);
-  }
+  const response = await store.updateProfile({ name: name.value.trim(), email: email.value.trim() });
+  if (await report(response, "Profil diperbarui")) store.fetchProfile();
 }
 
 async function onPhotoChange(event: Event) {
   const file = (event.target as HTMLInputElement).files![0];
-  if (!file) {
+  if (!file) return;
+  if (!file.type.startsWith("image/") || file.size > MAX_SIZE) {
+    showErrorDialog("Foto harus berupa gambar dengan ukuran maksimal 2 MB");
     return;
   }
-  const response = await store.changePhoto(file);
-  if (response.success) {
-    await showSuccessDialog(response.message);
-    await loadProfile();
-  } else {
-    await showErrorDialog(response.message);
-  }
+  const response = await store.uploadPhoto(file);
+  if (await report(response, "Foto diperbarui")) store.fetchProfile();
 }
 
-async function onChangePassword() {
-  const response = await store.changePassword(password.value, newPassword.value, confirmation.value);
-  if (response.success) {
+async function onPasswordSubmit() {
+  const errors: Record<string, string> = {};
+  if (!password.value) errors.password = "Kata sandi saat ini wajib diisi";
+  if (newPassword.value.length < 6) errors.newPassword = "Kata sandi baru minimal 6 karakter";
+  if (confirmation.value !== newPassword.value) errors.confirmation = "Konfirmasi tidak sama dengan kata sandi baru";
+  passwordErrors.value = errors;
+  if (Object.keys(errors).length > 0) return;
+
+  const response = await store.changePassword({
+    password: password.value,
+    new_password: newPassword.value,
+    new_password_confirmation: confirmation.value,
+  });
+  if (await report(response, "Kata sandi diperbarui")) {
     resetPassword();
     resetNewPassword();
     resetConfirmation();
-    await showSuccessDialog(response.message);
-  } else {
-    await showErrorDialog(response.message);
   }
 }
 </script>
 
 <template>
-  <section aria-labelledby="profile-title" class="space-y-6">
-    <div>
-      <h1 id="profile-title" class="text-2xl font-bold text-slate-900">Profil Saya</h1>
-      <p class="text-slate-700">Kelola data akun, foto, dan kata sandi.</p>
-    </div>
+  <div class="max-w-3xl">
+    <h1 class="text-3xl font-extrabold tracking-tight">Profil Saya</h1>
+    <p class="mt-1 text-sm text-slate-600">Kelola data akun, foto, dan kata sandimu.</p>
 
-    <div class="grid gap-6 lg:grid-cols-2">
-      <div class="space-y-6 rounded-2xl border border-slate-200 bg-white p-6">
-        <div class="flex items-center gap-4">
-          <img
-            v-if="store.profile && store.profile.photo"
-            :src="store.profile.photo"
-            alt="Foto profil"
-            width="64"
-            height="64"
-            class="h-16 w-16 rounded-full object-cover"
-          />
-          <span
-            v-else
-            class="flex h-16 w-16 items-center justify-center rounded-full bg-indigo-100 text-2xl font-bold text-indigo-800"
-            aria-hidden="true"
-          >
-            {{ name.charAt(0).toUpperCase() }}
-          </span>
-          <div>
-            <label for="profile-photo" class="mb-1 block text-sm font-semibold text-slate-800">Ganti foto profil</label>
-            <input id="profile-photo" type="file" accept="image/*" class="text-sm text-slate-800" @change="onPhotoChange" />
-          </div>
-        </div>
-
-        <form class="space-y-4" @submit.prevent="onUpdateProfile">
-          <h2 class="text-lg font-bold text-slate-900">Data akun</h2>
-          <div>
-            <label for="profile-name" class="mb-1 block text-sm font-semibold text-slate-800">Nama</label>
-            <input
-              id="profile-name"
-              type="text"
-              required
-              class="w-full rounded-lg border border-slate-400 px-3 py-2 text-slate-900"
-              :value="name"
-              @input="onNameChange"
-            />
-          </div>
-          <div>
-            <label for="profile-email" class="mb-1 block text-sm font-semibold text-slate-800">Email</label>
-            <input
-              id="profile-email"
-              type="email"
-              required
-              class="w-full rounded-lg border border-slate-400 px-3 py-2 text-slate-900"
-              :value="email"
-              @input="onEmailChange"
-            />
-          </div>
-          <button
-            type="submit"
-            :disabled="store.isSaving"
-            class="rounded-lg bg-indigo-700 px-4 py-2 font-semibold text-white hover:bg-indigo-800 disabled:opacity-60"
-          >
-            Simpan Perubahan
-          </button>
-        </form>
+    <section class="panel mt-6 flex items-center gap-5 p-6" aria-label="Foto profil">
+      <img v-if="store.profile?.photo" :src="resolveImageUrl(store.profile.photo)" alt="Foto profil" class="size-20 rounded-full object-cover" />
+      <span v-else class="grid size-20 place-items-center rounded-full bg-plum-900 text-xl font-bold text-white" aria-hidden="true">
+        {{ getInitials(store.profile?.name) }}
+      </span>
+      <div>
+        <p class="text-lg font-extrabold">{{ store.profile?.name ?? "-" }}</p>
+        <label class="btn btn-ghost mt-2 cursor-pointer text-xs">
+          <Camera :size="14" aria-hidden="true" />
+          {{ store.isPhotoChange ? "Mengunggah…" : "Ganti foto" }}
+          <input type="file" accept="image/*" class="sr-only" aria-label="Unggah foto profil" @change="onPhotoChange" />
+        </label>
       </div>
+    </section>
 
-      <form class="space-y-4 rounded-2xl border border-slate-200 bg-white p-6" @submit.prevent="onChangePassword">
-        <h2 class="text-lg font-bold text-slate-900">Ubah kata sandi</h2>
-        <div>
-          <label for="profile-password" class="mb-1 block text-sm font-semibold text-slate-800">Kata sandi saat ini</label>
-          <input
-            id="profile-password"
-            type="password"
-            required
-            autocomplete="current-password"
-            class="w-full rounded-lg border border-slate-400 px-3 py-2 text-slate-900"
-            :value="password"
-            @input="onPasswordChange"
-          />
-        </div>
-        <div>
-          <label for="profile-new-password" class="mb-1 block text-sm font-semibold text-slate-800">Kata sandi baru</label>
-          <input
-            id="profile-new-password"
-            type="password"
-            required
-            autocomplete="new-password"
-            class="w-full rounded-lg border border-slate-400 px-3 py-2 text-slate-900"
-            :value="newPassword"
-            @input="onNewPasswordChange"
-          />
-        </div>
-        <div>
-          <label for="profile-confirmation" class="mb-1 block text-sm font-semibold text-slate-800">Konfirmasi kata sandi baru</label>
-          <input
-            id="profile-confirmation"
-            type="password"
-            required
-            autocomplete="new-password"
-            class="w-full rounded-lg border border-slate-400 px-3 py-2 text-slate-900"
-            :value="confirmation"
-            @input="onConfirmationChange"
-          />
-        </div>
-        <button
-          type="submit"
-          :disabled="store.isSaving"
-          class="rounded-lg bg-indigo-700 px-4 py-2 font-semibold text-white hover:bg-indigo-800 disabled:opacity-60"
-        >
-          Ubah Kata Sandi
-        </button>
-      </form>
-    </div>
-  </section>
+    <form class="panel mt-6 space-y-5 p-6" novalidate @submit.prevent="onProfileSubmit">
+      <h2 class="text-lg font-extrabold">Data akun</h2>
+      <div>
+        <label class="label" for="profile-name">Nama</label>
+        <input id="profile-name" v-model="name" type="text" class="field" />
+        <p v-if="profileErrors.name" class="field-error">{{ profileErrors.name }}</p>
+      </div>
+      <div>
+        <label class="label" for="profile-email">Email</label>
+        <input id="profile-email" v-model="email" type="email" class="field" />
+        <p v-if="profileErrors.email" class="field-error">{{ profileErrors.email }}</p>
+      </div>
+      <button type="submit" class="btn btn-primary" :disabled="store.isProfileChange">
+        {{ store.isProfileChange ? "Menyimpan…" : "Simpan profil" }}
+      </button>
+    </form>
+
+    <form class="panel mt-6 space-y-5 p-6" novalidate @submit.prevent="onPasswordSubmit">
+      <h2 class="text-lg font-extrabold">Ganti kata sandi</h2>
+      <div>
+        <label class="label" for="current-password">Kata sandi saat ini</label>
+        <input id="current-password" v-model="password" type="password" class="field" autocomplete="current-password" />
+        <p v-if="passwordErrors.password" class="field-error">{{ passwordErrors.password }}</p>
+      </div>
+      <div>
+        <label class="label" for="new-password">Kata sandi baru</label>
+        <input id="new-password" v-model="newPassword" type="password" class="field" autocomplete="new-password" />
+        <p v-if="passwordErrors.newPassword" class="field-error">{{ passwordErrors.newPassword }}</p>
+      </div>
+      <div>
+        <label class="label" for="confirm-password">Ulangi kata sandi baru</label>
+        <input id="confirm-password" v-model="confirmation" type="password" class="field" autocomplete="new-password" />
+        <p v-if="passwordErrors.confirmation" class="field-error">{{ passwordErrors.confirmation }}</p>
+      </div>
+      <button type="submit" class="btn btn-primary" :disabled="store.isPasswordChange">
+        {{ store.isPasswordChange ? "Menyimpan…" : "Ubah kata sandi" }}
+      </button>
+    </form>
+  </div>
 </template>

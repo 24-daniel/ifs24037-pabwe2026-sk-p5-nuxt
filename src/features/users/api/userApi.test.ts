@@ -1,45 +1,38 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { changePassword, getMe, getUsers, updateMe, uploadPhoto } from "./userApi";
-import { apiRequest } from "../../../helpers/apiHelper";
+// @ts-nocheck
+import { describe, expect, it, vi } from 'vitest'
+import * as userApi from './userApi'
+import * as apiHelper from '../../../helpers/apiHelper'
 
-vi.mock("../../../helpers/apiHelper", () => ({ apiRequest: vi.fn() }));
+vi.mock('../../../helpers/apiHelper', () => ({
+  apiGet: vi.fn(() => Promise.resolve({})),
+  apiPost: vi.fn(() => Promise.resolve({})),
+  apiPut: vi.fn(() => Promise.resolve({})),
+}))
 
-beforeEach(() => {
-  vi.mocked(apiRequest).mockReset();
-  vi.mocked(apiRequest).mockResolvedValue({ success: true, message: "ok", data: null });
-});
+describe('userApi', () => {
+  it('endpoint GET', async () => {
+    await userApi.getUsers()
+    await userApi.getUserById(7)
+    await userApi.getProfile()
+    expect(apiHelper.apiGet.mock.calls).toEqual([['/users'], ['/users/7'], ['/users/me']])
+  })
 
-describe("userApi", () => {
-  it("getUsers dan getMe", async () => {
-    await getUsers();
-    await getMe();
-    expect(apiRequest).toHaveBeenNthCalledWith(1, "/users");
-    expect(apiRequest).toHaveBeenNthCalledWith(2, "/users/me");
-  });
+  it('update profil & ganti kata sandi', async () => {
+    await userApi.updateProfile({ name: 'N', email: 'e', lain: 1 })
+    await userApi.changePassword({ password: 'a', new_password: 'b', new_password_confirmation: 'b' })
+    expect(apiHelper.apiPut).toHaveBeenNthCalledWith(1, '/users/me', { name: 'N', email: 'e' })
+    expect(apiHelper.apiPut).toHaveBeenNthCalledWith(2, '/users/password', {
+      password: 'a',
+      new_password: 'b',
+      new_password_confirmation: 'b',
+    })
+  })
 
-  it("updateMe memakai PUT /users/me", async () => {
-    await updateMe("Budi", "b@d.c");
-    expect(apiRequest).toHaveBeenCalledWith("/users/me", {
-      method: "PUT",
-      body: { name: "Budi", email: "b@d.c" },
-    });
-  });
-
-  it("uploadPhoto mengirim FormData field photo", async () => {
-    const file = new File(["x"], "a.png", { type: "image/png" });
-    await uploadPhoto(file);
-    const [path, options] = vi.mocked(apiRequest).mock.calls[0] as any;
-    expect(path).toBe("/users/me/photo");
-    expect(options.method).toBe("POST");
-    expect(options.body).toBeInstanceOf(FormData);
-    expect(options.body.get("photo")).toBeInstanceOf(File);
-  });
-
-  it("changePassword memakai PUT /users/password", async () => {
-    await changePassword("lama", "baru", "baru");
-    expect(apiRequest).toHaveBeenCalledWith("/users/password", {
-      method: "PUT",
-      body: { password: "lama", new_password: "baru", new_password_confirmation: "baru" },
-    });
-  });
-});
+  it('upload foto memakai FormData field "photo"', async () => {
+    const file = new File(['x'], 'p.png', { type: 'image/png' })
+    await userApi.uploadPhoto(file)
+    const [path, body] = apiHelper.apiPost.mock.calls[0]
+    expect(path).toBe('/users/me/photo')
+    expect(body.get('photo')).toBe(file)
+  })
+})
