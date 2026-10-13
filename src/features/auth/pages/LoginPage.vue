@@ -39,16 +39,16 @@ async function onSubmit() {
 
     <form class="mt-8 space-y-5" novalidate @submit.prevent="onSubmit">
       <div>
-        <label class="label" for="email">Email</label>
-        <input id="email" v-model="email" type="email" class="field" placeholder="nama@del.ac.id" autocomplete="email" />
+        <label class="label" for="login-email-input">Email</label>
+        <input id="login-email-input" v-model="email" type="email" class="field" placeholder="nama@del.ac.id" autocomplete="email" />
         <p v-if="errors.email" class="field-error">{{ errors.email }}</p>
       </div>
       <div>
-        <label class="label" for="password">Kata sandi</label>
-        <input id="password" v-model="password" type="password" class="field" placeholder="Kata sandi" autocomplete="current-password" />
+        <label class="label" for="login-password-input">Kata sandi</label>
+        <input id="login-password-input" v-model="password" type="password" class="field" placeholder="Kata sandi" autocomplete="current-password" />
         <p v-if="errors.password" class="field-error">{{ errors.password }}</p>
       </div>
-      <button type="submit" class="btn btn-primary w-full" :disabled="authStore.isLoading">
+      <button id="login-submit-button" type="submit" class="btn btn-primary w-full" :disabled="authStore.isLoading">
         {{ authStore.isLoading ? "Memproses…" : "Masuk" }}
       </button>
     </form>

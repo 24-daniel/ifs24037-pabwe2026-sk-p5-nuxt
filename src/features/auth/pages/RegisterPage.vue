@@ -51,21 +51,21 @@ async function onSubmit() {
 
     <form class="mt-8 space-y-5" novalidate @submit.prevent="onSubmit">
       <div>
-        <label class="label" for="name">Nama lengkap</label>
-        <input id="name" v-model="name" type="text" class="field" placeholder="Nama lengkap" autocomplete="name" />
+        <label class="label" for="register-name-input">Nama lengkap</label>
+        <input id="register-name-input" v-model="name" type="text" class="field" placeholder="Nama lengkap" autocomplete="name" />
         <p v-if="errors.name" class="field-error">{{ errors.name }}</p>
       </div>
       <div>
-        <label class="label" for="email">Email</label>
-        <input id="email" v-model="email" type="email" class="field" placeholder="nama@del.ac.id" autocomplete="email" />
+        <label class="label" for="register-email-input">Email</label>
+        <input id="register-email-input" v-model="email" type="email" class="field" placeholder="nama@del.ac.id" autocomplete="email" />
         <p v-if="errors.email" class="field-error">{{ errors.email }}</p>
       </div>
       <div>
-        <label class="label" for="password">Kata sandi</label>
-        <input id="password" v-model="password" type="password" class="field" placeholder="Minimal 6 karakter" autocomplete="new-password" />
+        <label class="label" for="register-password-input">Kata sandi</label>
+        <input id="register-password-input" v-model="password" type="password" class="field" placeholder="Minimal 6 karakter" autocomplete="new-password" />
         <p v-if="errors.password" class="field-error">{{ errors.password }}</p>
       </div>
-      <button type="submit" class="btn btn-primary w-full" :disabled="authStore.isLoading">
+      <button id="register-submit-button" type="submit" class="btn btn-primary w-full" :disabled="authStore.isLoading">
         {{ authStore.isLoading ? "Memproses…" : "Daftar" }}
       </button>
     </form>
