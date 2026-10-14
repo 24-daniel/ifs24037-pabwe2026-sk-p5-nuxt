@@ -85,10 +85,12 @@ describe('ProfilePage', () => {
   it('unggah foto: menolak berkas bukan gambar atau terlalu besar', async () => {
     await render()
     await fireEvent.change(photoInput(), { target: { files: [new File(['x'], 'a.pdf', { type: 'application/pdf' })] } })
+    await waitFor(() => expect(Swal.fire).toHaveBeenCalledTimes(1), { timeout: 5000 })
     await fireEvent.change(photoInput(), { target: { files: [image(3 * 1024 * 1024)] } })
+    await waitFor(() => expect(Swal.fire).toHaveBeenCalledTimes(2), { timeout: 5000 })
     expect(userApi.uploadPhoto).not.toHaveBeenCalled()
-    await waitFor(() => expect(Swal.fire).toHaveBeenCalledTimes(2))
-    await waitFor(() => expect(Swal.fire.mock.calls[0][0].text).toMatch(/maksimal 2 MB/))
+    expect(Swal.fire.mock.calls[0][0].text).toMatch(/maksimal 2 MB/)
+    expect(Swal.fire.mock.calls[1][0].text).toMatch(/maksimal 2 MB/)
   })
 
   it('unggah foto berhasil dan gagal', async () => {

@@ -2,8 +2,10 @@ import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import type { ApiResponse } from "./apiHelper";
 
-// SweetAlert2 dimuat hanya saat dialog pertama kali ditampilkan (mengurangi JavaScript awal)
-const loadSwal = async () => (await import("sweetalert2")).default;
+// SweetAlert2 dimuat hanya saat dialog pertama kali ditampilkan (mengurangi JavaScript awal).
+// Promise disimpan agar pemanggilan bersamaan memakai satu import yang sama.
+let swalPromise: Promise<typeof import("sweetalert2").default> | undefined;
+const loadSwal = () => (swalPromise ??= import("sweetalert2").then((m) => m.default));
 
 const colors = { confirmButtonColor: "#43194f", cancelButtonColor: "#475569" };
 
