@@ -1,6 +1,9 @@
 import "@testing-library/jest-dom/vitest";
 import { afterEach, vi } from "vitest";
-import { cleanup } from "@testing-library/vue";
+import { cleanup, configure } from "@testing-library/vue";
+
+// Batas tunggu findBy*/waitFor dinaikkan agar tidak flaky di mesin/CI yang lambat
+configure({ asyncUtilTimeout: 5000 });
 
 // jsdom tidak punya matchMedia; dibutuhkan SweetAlert2 asli jika sampai terpanggil
 if (!window.matchMedia) {

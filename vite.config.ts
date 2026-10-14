@@ -23,6 +23,7 @@ export default defineConfig(({ mode }) => {
       globals: true,
       environment: "jsdom",
       testTimeout: 15000,
+      maxWorkers: 4,
       css: false,
       setupFiles: "./src/setupTests.ts",
       include: ["src/**/*.test.ts"],
